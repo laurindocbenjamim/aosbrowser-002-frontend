@@ -18,6 +18,14 @@ export default function PreviewScene({ layoutId, onNavigate, mini = false }: Pre
       onMouseEnter={() => !mini && setIsHovered(true)}
       onMouseLeave={() => !mini && setIsHovered(false)}
     >
+      {mini && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
+          <div className="w-[1px] h-[1px] bg-white rounded-full shadow-[0_0_12px_3px_white,0_0_25px_6px_rgba(255,255,255,0.3)] animate-pulse" />
+          <div className="absolute w-[24px] h-[0.5px] bg-gradient-to-r from-transparent via-white/40 to-transparent blur-[0.5px]" />
+          <div className="absolute w-[0.5px] h-[24px] bg-gradient-to-b from-transparent via-white/40 to-transparent blur-[0.5px]" />
+        </div>
+      )}
+
       {!mini && (
         <>
           {/* 3D Tunnel Background */}
