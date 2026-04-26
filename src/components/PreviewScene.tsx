@@ -16,46 +16,74 @@ export default function PreviewScene({ layoutId, onNavigate }: PreviewSceneProps
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      {/* Tunnel Background */}
-      <div className="absolute inset-0 pointer-events-none z-0">
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#050505] to-black" />
-        
-        {/* Converging perspective lines or circles */}
-        <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
-          {[...Array(6)].map((_, i) => (
+      {/* 3D Tunnel Background */}
+      <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden bg-black">
+        <div className="absolute inset-0" style={{ perspective: '1000px' }}>
+          <div className="absolute inset-0 flex items-center justify-center" style={{ transformStyle: 'preserve-3d' }}>
+            
+            {/* The Light at the End */}
             <div 
-              key={i}
-              className="absolute border border-white/[0.03] rounded-full"
+              className="absolute w-24 h-24 bg-amber-100 blur-[1px] shadow-[0_0_100px_40px_rgba(251,191,36,0.3)] z-0"
+              style={{ transform: 'translateZ(-800px)' }}
+            />
+            
+            {/* Left Wall */}
+            <div 
+              className="absolute w-[1000px] h-full bg-[#080808] border-r border-white/5"
               style={{ 
-                width: `${(i + 1) * 20}%`,
-                height: `${(i + 1) * 20}%`,
-                boxShadow: 'inset 0 0 100px rgba(0,0,0,1)',
-                transform: `translateZ(${-i * 100}px)`,
-                opacity: 0.5 / (i + 1)
+                transform: 'rotateY(90deg) translateZ(-500px)',
+                backgroundImage: 'linear-gradient(to right, #000, transparent)',
+                maskImage: 'linear-gradient(to bottom, transparent, black, transparent)'
+              }}
+            >
+              <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]" />
+            </div>
+
+            {/* Right Wall */}
+            <div 
+              className="absolute w-[1000px] h-full bg-[#080808] border-l border-white/5"
+              style={{ 
+                transform: 'rotateY(-90deg) translateZ(-500px)',
+                backgroundImage: 'linear-gradient(to left, #000, transparent)',
+                maskImage: 'linear-gradient(to bottom, transparent, black, transparent)'
+              }}
+            >
+              <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]" />
+            </div>
+
+            {/* Floor */}
+            <div 
+              className="absolute w-full h-[1000px] bg-[#050505]"
+              style={{ 
+                transform: 'rotateX(90deg) translateZ(500px)',
+                backgroundImage: 'radial-gradient(ellipse at center, rgba(251,191,36,0.1) 0%, transparent 70%)',
+                boxShadow: 'inset 0 0 100px #000'
+              }}
+            >
+              <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'repeating-linear-gradient(transparent, transparent 20px, rgba(255,255,255,0.02) 21px)' }} />
+            </div>
+
+            {/* Ceiling */}
+            <div 
+              className="absolute w-full h-[1000px] bg-black"
+              style={{ 
+                transform: 'rotateX(-90deg) translateZ(500px)',
+                boxShadow: 'inset 0 0 200px #000'
               }}
             />
-          ))}
-          
-          {/* Central distant light */}
-          <div className="w-[4px] h-[4px] bg-white/40 rounded-full blur-[2px] shadow-[0_0_25px_4px_rgba(255,255,255,0.15)]" />
+          </div>
         </div>
 
-        {/* Perspective Floor/Ceiling effect */}
-        <div 
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[200%] h-full opacity-20 pointer-events-none"
-          style={{ 
-            backgroundImage: 'repeating-linear-gradient(transparent, transparent 48px, rgba(255,255,255,0.02) 49px, rgba(255,255,255,0.02) 50px)',
-            transform: 'perspective(500px) rotateX(60deg) translateY(20%)',
-          }}
-        />
+        {/* Global atmospheric fog/glow */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black opacity-60" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black via-transparent to-black opacity-60" />
       </div>
 
-      {/* Grid Pattern */}
-      <div className="absolute inset-0 z-1" 
+      {/* Grid Overlay (Subtle) */}
+      <div className="absolute inset-0 z-1 pointer-events-none opacity-20" 
         style={{ 
-          backgroundImage: 'radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px)', 
-          backgroundSize: '32px 32px',
-          perspective: '1000px'
+          backgroundImage: 'radial-gradient(rgba(251,191,36,0.15) 1px, transparent 1px)', 
+          backgroundSize: '40px 40px',
         }} 
       />
 
