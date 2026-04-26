@@ -65,14 +65,14 @@ export default function PreviewScene({ layoutId, onNavigate, mini = false }: Pre
 
                 {/* Floor */}
                 <div 
-                  className="absolute w-full h-[1000px] bg-[#050505]"
+                  className="absolute w-full h-[1200px] bg-[#030303]"
                   style={{ 
                     transform: 'rotateX(90deg) translateZ(500px)',
-                    backgroundImage: 'radial-gradient(ellipse at center, rgba(251,191,36,0.1) 0%, transparent 70%)',
-                    boxShadow: 'inset 0 0 100px #000'
+                    backgroundImage: 'radial-gradient(ellipse at center, rgba(251,191,36,0.06) 0%, rgba(10,10,10,0) 80%)',
+                    boxShadow: 'inset 0 0 150px #000'
                   }}
                 >
-                  <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'repeating-linear-gradient(transparent, transparent 20px, rgba(255,255,255,0.02) 21px)' }} />
+                  <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'repeating-linear-gradient(transparent, transparent 40px, rgba(255,255,255,1) 41px)', maskImage: 'linear-gradient(to right, transparent, black 25%, black 75%, transparent)' }} />
                 </div>
 
                 {/* Ceiling */}
