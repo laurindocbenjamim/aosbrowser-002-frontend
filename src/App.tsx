@@ -5,7 +5,6 @@ import { Menu, X, Globe, Terminal, Shield, Zap, Home, ChevronUp, ChevronDown, Ma
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import validator from 'validator';
-import { io, Socket } from 'socket.io-client';
 import { jsPDF } from 'jspdf';
 import { z } from 'zod';
 
@@ -30,6 +29,11 @@ const sanitizeInput = (val: string) => {
 
 // @ts-ignore
 const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
+const getWsUrl = (path: string) => {
+  const wsBase = API_URL.replace(/^http/, 'ws');
+  return `${wsBase}${path}`;
+};
 
 const api = axios.create({
   baseURL: API_URL,
@@ -204,15 +208,10 @@ function OffensiveAgentPage() {
   const [report, setReport] = useState<string | null>(null);
   const [techniques, setTechniques] = useState<string[]>(['SQL Injection', 'XSS', 'CSRF', 'SSRF', 'Auth Bypass', 'Dir Traversal', 'IDOR']);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const socketRef = useRef<Socket | null>(null);
+  const socketRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    socketRef.current = io(API_URL);
-    socketRef.current.on('agent_log', (data) => {
-      setLogs(prev => [...prev, data.message]);
-      if (data.progress) setProgress(data.progress);
-    });
-    return () => { socketRef.current?.disconnect(); };
+    return () => { socketRef.current?.close(); };
   }, []);
 
   const handleLaunch = async () => {
@@ -229,15 +228,43 @@ function OffensiveAgentPage() {
     setLogs(prev => [...prev, `[INIT] Engagement protocol sent to ${sanitizeInput(formData.target)}`]);
 
     try {
+      let sid = sessionId;
+      if (!sid) {
+        const sResp = await api.post('/pentesting/session');
+        sid = sResp.data.session_id;
+        setSessionId(sid);
+      }
+
+      // Connect WebSocket
+      if (socketRef.current) socketRef.current.close();
+      const ws = new WebSocket(getWsUrl(`/pentesting/ws/${sid}`));
+      socketRef.current = ws;
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === 'log') {
+          setLogs(prev => [...prev, data.message]);
+        } else if (data.type === 'status') {
+          setLogs(prev => [...prev, `[STATUS] ${data.message}`]);
+        } else if (data.type === 'step') {
+          setLogs(prev => [...prev, `[STEP ${data.iteration}] ${data.thought}`]);
+        } else if (data.type === 'progress') {
+          setProgress(data.value);
+        } else if (data.type === 'complete') {
+          setLogs(prev => [...prev, '[SUCCESS] Engagement completed.']);
+          setReport(data.data.report);
+          setProgress(100);
+        }
+      };
+
       const response = await api.post('/pentesting/audit', {
         url: sanitizeInput(formData.target),
         instruction: sanitizeInput(formData.instruction),
         max_iterations: formData.iterations,
-        techniques: techniques
+        session_id: sid,
+        context: `Techniques: ${techniques.join(', ')}`
       });
-      setLogs(prev => [...prev, `[SUCCESS] Audit Complete. Status: ${response.data.status}`]);
-      setReport(response.data.report);
-      setProgress(100);
+      setLogs(prev => [...prev, `[OK] Audit Initialized. Status: ${response.data.status}`]);
     } catch (err: any) {
       let friendlyMessage = 'An unexpected error occurred during the engagement.';
       if (err.response) {
@@ -474,19 +501,11 @@ function AgenticOSPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const socketRef = useRef<Socket | null>(null);
+  const socketRef = useRef<WebSocket | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    socketRef.current = io(API_URL);
-    socketRef.current.on('agent_log', (data) => {
-      setLogs(prev => [...prev, data.message]);
-      if (data.progress) setProgress(data.progress);
-      if (data.type === 'response' || data.type === 'result') {
-        setMessages(prev => [...prev, { sender: 'system', text: data.message }]);
-      }
-    });
-    return () => { socketRef.current?.disconnect(); };
+    return () => { socketRef.current?.close(); };
   }, []);
 
   useEffect(() => {
@@ -514,21 +533,49 @@ function AgenticOSPage() {
     
     try {
       // Step 1: Get Session
-      const sessionResp = await api.post('/automation/session', { user_id: 'guest' });
-      const sid = sessionResp.data.session_id;
-      setSessionId(sid);
+      let sid = sessionId;
+      if (!sid) {
+        const sessionResp = await api.post('/automation/session', { user_id: 'guest' });
+        sid = sessionResp.data.session_id;
+        setSessionId(sid);
+      }
 
-      // Step 2: Run Task
+      // Step 2: Connect WebSocket
+      if (socketRef.current) socketRef.current.close();
+      const ws = new WebSocket(getWsUrl(`/automation/ws/${sid}`));
+      socketRef.current = ws;
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.progress !== undefined) setProgress(data.progress);
+        
+        if (data.type === 'status') {
+          setLogs(prev => [...prev, `[AGENT] ${data.message}`]);
+          if (data.final) {
+            setMessages(prev => [...prev, { sender: 'system', text: data.message }]);
+          }
+        } else if (data.type === 'step') {
+          setMessages(prev => [...prev, { 
+            sender: 'system', 
+            text: `Iteration ${data.iteration}: ${data.thought}` 
+          }]);
+          if (data.actions && data.actions.length > 0) {
+            setLogs(prev => [...prev, `[ACTIONS] ${JSON.stringify(data.actions)}`]);
+          }
+        }
+      };
+
+      // Step 3: Run Task
       const resp = await api.post('/automation/run-task', {
         url: sanitizeInput(formData.target),
         instruction: sanitizeInput(formData.instruction),
         context: sanitizeInput(formData.context),
         auto_decision: formData.autoDecision,
-        session_id: sid
+        session_id: sid,
+        max_iterations: 15
       });
-      setLogs(prev => [...prev, `[OK] Task cycle completed. Status: ${resp.data.status}`]);
-      setMessages(prev => [...prev, { sender: 'system', text: `Task complete: ${resp.data.status}` }]);
-      setProgress(100);
+      setLogs(prev => [...prev, `[OK] Task queued. Status: ${resp.data.status}`]);
+      setProgress(10);
     } catch (err: any) {
       let friendlyMessage = 'Gateway offline or task interrupted.';
       if (err.response) {
