@@ -18,12 +18,36 @@ export default function PreviewScene({ layoutId, onNavigate }: PreviewSceneProps
     >
       {/* Tunnel Background */}
       <div className="absolute inset-0 pointer-events-none z-0">
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#080808] to-black opacity-80" />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#050505] to-black" />
+        
+        {/* Converging perspective lines or circles */}
+        <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
+          {[...Array(6)].map((_, i) => (
+            <div 
+              key={i}
+              className="absolute border border-white/[0.03] rounded-full"
+              style={{ 
+                width: `${(i + 1) * 20}%`,
+                height: `${(i + 1) * 20}%`,
+                boxShadow: 'inset 0 0 100px rgba(0,0,0,1)',
+                transform: `translateZ(${-i * 100}px)`,
+                opacity: 0.5 / (i + 1)
+              }}
+            />
+          ))}
+          
+          {/* Central distant light */}
+          <div className="w-[4px] h-[4px] bg-white/40 rounded-full blur-[2px] shadow-[0_0_25px_4px_rgba(255,255,255,0.15)]" />
+        </div>
+
+        {/* Perspective Floor/Ceiling effect */}
         <div 
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-[50%] bg-black" 
-          style={{ clipPath: 'polygon(20% 0%, 80% 0%, 100% 100%, 0% 100%)' }}
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[200%] h-full opacity-20 pointer-events-none"
+          style={{ 
+            backgroundImage: 'repeating-linear-gradient(transparent, transparent 48px, rgba(255,255,255,0.02) 49px, rgba(255,255,255,0.02) 50px)',
+            transform: 'perspective(500px) rotateX(60deg) translateY(20%)',
+          }}
         />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[2px] h-[2px] bg-white shadow-[0_0_40px_10px_white] opacity-30" />
       </div>
 
       {/* Grid Pattern */}
