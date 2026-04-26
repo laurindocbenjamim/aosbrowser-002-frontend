@@ -59,10 +59,16 @@ export default function OffensiveAgentPage() {
 
   const checkServerHealth = async () => {
     try {
-      await api.get('/pentesting/session'); 
+      // Any response (even error responses like 405) from the server means it is online
+      const response = await api.get('/pentesting/session'); 
       setServerStatus('online');
-    } catch (err) {
-      setServerStatus('offline');
+    } catch (err: any) {
+      // If we got a response from the server, it's alive (even if 405 Method Not Allowed)
+      if (err.response) {
+        setServerStatus('online');
+      } else {
+        setServerStatus('offline');
+      }
     }
   };
 

@@ -161,15 +161,66 @@ export default function PreviewScene({ layoutId, onNavigate, mini = false }: Pre
                  rotateY: [0, 90, 180, 270, 360]
                }}
                transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
-               className="w-12 h-12 relative"
+               className="w-16 h-16 relative"
                style={{ transformStyle: 'preserve-3d' }}
             >
-               <div className="absolute inset-0 border border-white/20 bg-white/5 backdrop-blur-sm" style={{ transform: 'translateZ(24px)' }} />
-               <div className="absolute inset-0 border border-white/20 bg-white/5 backdrop-blur-sm" style={{ transform: 'translateZ(-24px) rotateY(180deg)' }} />
-               <div className="absolute inset-0 border border-white/20 bg-white/5 backdrop-blur-sm" style={{ transform: 'translateX(24px) rotateY(90deg)' }} />
-               <div className="absolute inset-0 border border-white/20 bg-white/5 backdrop-blur-sm" style={{ transform: 'translateX(-24px) rotateY(-90deg)' }} />
-               <div className="absolute inset-0 border border-white/20 bg-white/5 backdrop-blur-sm" style={{ transform: 'translateY(24px) rotateX(90deg)' }} />
-               <div className="absolute inset-0 border border-white/20 bg-white/5 backdrop-blur-sm" style={{ transform: 'translateY(-24px) rotateX(-90deg)' }} />
+               {/* Front: AI */}
+               <div className="absolute inset-0 border border-white/20 bg-white/5 backdrop-blur-sm flex items-center justify-center" style={{ transform: 'translateZ(32px)' }}>
+                  <span className="text-[10px] font-mono font-bold text-white uppercase tracking-widest">AI</span>
+               </div>
+               {/* Back: Agents */}
+               <div className="absolute inset-0 border border-white/40 bg-gradient-to-br from-white/20 via-white/40 to-white/10 backdrop-blur-md flex items-center justify-center overflow-hidden" style={{ transform: 'translateZ(-32px) rotateY(180deg)' }}>
+                  <motion.div 
+                    animate={{ 
+                      x: ['-100%', '200%'],
+                      opacity: [0, 1, 0]
+                    }}
+                    transition={{ 
+                      duration: 2, 
+                      repeat: Infinity, 
+                      ease: "easeInOut",
+                      repeatDelay: 1
+                    }}
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/80 to-transparent skew-x-12"
+                  />
+                  {/* Sparkles */}
+                  {[...Array(5)].map((_, i) => (
+                    <motion.div
+                      key={i}
+                      className="absolute w-0.5 h-0.5 bg-white rounded-full shadow-[0_0_4px_white]"
+                      initial={{ scale: 0, opacity: 0 }}
+                      animate={{ 
+                        scale: [0, 1.5, 0],
+                        opacity: [0, 1, 0],
+                        x: [Math.random() * 60 - 30, Math.random() * 60 - 30],
+                        y: [Math.random() * 60 - 30, Math.random() * 60 - 30]
+                      }}
+                      transition={{ 
+                        duration: 1.5, 
+                        repeat: Infinity, 
+                        delay: Math.random() * 2,
+                        ease: "easeOut"
+                      }}
+                    />
+                  ))}
+                  <span className="text-[11px] font-mono font-black text-white uppercase tracking-widest relative z-10 drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]">Agents</span>
+               </div>
+               {/* Right: Data */}
+               <div className="absolute inset-0 border border-white/20 bg-white/5 backdrop-blur-sm flex items-center justify-center" style={{ transform: 'translateX(32px) rotateY(90deg)' }}>
+                  <span className="text-[10px] font-mono font-bold text-white uppercase tracking-widest">Data</span>
+               </div>
+               {/* Left: Ship */}
+               <div className="absolute inset-0 border border-white/20 bg-white/5 backdrop-blur-sm flex items-center justify-center" style={{ transform: 'translateX(-32px) rotateY(-90deg)' }}>
+                  <span className="text-[10px] font-mono font-bold text-white uppercase tracking-widest">Ship</span>
+               </div>
+               {/* Top: AI */}
+               <div className="absolute inset-0 border border-white/20 bg-white/5 backdrop-blur-sm flex items-center justify-center" style={{ transform: 'translateY(-32px) rotateX(90deg)' }}>
+                  <span className="text-[10px] font-mono font-bold text-white uppercase tracking-widest">AI</span>
+               </div>
+               {/* Bottom: Ship */}
+               <div className="absolute inset-0 border border-white/20 bg-white/5 backdrop-blur-sm flex items-center justify-center" style={{ transform: 'translateY(32px) rotateX(-90deg)' }}>
+                  <span className="text-[10px] font-mono font-bold text-white uppercase tracking-widest">Ship</span>
+               </div>
             </motion.div>
         </div>
       </div>
