@@ -5,109 +5,115 @@ import { useState } from 'react';
 interface PreviewSceneProps {
   layoutId: string;
   onNavigate?: (page: string) => void;
+  mini?: boolean;
 }
 
-export default function PreviewScene({ layoutId, onNavigate }: PreviewSceneProps) {
+export default function PreviewScene({ layoutId, onNavigate, mini = false }: PreviewSceneProps) {
   const [isHovered, setIsHovered] = useState(false);
 
   return (
-    <div 
-      className="w-full h-full bg-[#050505] rounded-xl border border-white/5 relative overflow-hidden group shadow-2xl"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+    <motion.div 
+      layoutId={layoutId}
+      className={`relative overflow-hidden group ${mini ? 'w-full h-full' : 'w-full h-full bg-[#050505] rounded-xl border border-white/5 shadow-2xl'}`}
+      onMouseEnter={() => !mini && setIsHovered(true)}
+      onMouseLeave={() => !mini && setIsHovered(false)}
     >
-      {/* 3D Tunnel Background */}
-      <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden bg-black">
-        <div className="absolute inset-0" style={{ perspective: '1000px' }}>
-          <div className="absolute inset-0 flex items-center justify-center" style={{ transformStyle: 'preserve-3d' }}>
-            
-            {/* The Light at the End */}
-            <div 
-              className="absolute w-24 h-24 bg-amber-100 blur-[1px] shadow-[0_0_100px_40px_rgba(251,191,36,0.3)] z-0"
-              style={{ transform: 'translateZ(-800px)' }}
-            />
-            
-            {/* Left Wall */}
-            <div 
-              className="absolute w-[1000px] h-full bg-[#080808] border-r border-white/5"
-              style={{ 
-                transform: 'rotateY(90deg) translateZ(-500px)',
-                backgroundImage: 'linear-gradient(to right, #000, transparent)',
-                maskImage: 'linear-gradient(to bottom, transparent, black, transparent)'
-              }}
-            >
-              <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]" />
+      {!mini && (
+        <>
+          {/* 3D Tunnel Background */}
+          <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden bg-black">
+            <div className="absolute inset-0" style={{ perspective: '1000px' }}>
+              <div className="absolute inset-0 flex items-center justify-center" style={{ transformStyle: 'preserve-3d' }}>
+                
+                {/* The Light at the End */}
+                <div 
+                  className="absolute w-24 h-24 bg-amber-100 blur-[1px] shadow-[0_0_100px_40px_rgba(251,191,36,0.3)] z-0"
+                  style={{ transform: 'translateZ(-800px)' }}
+                />
+                
+                {/* Left Wall */}
+                <div 
+                  className="absolute w-[1000px] h-full bg-[#080808] border-r border-white/5"
+                  style={{ 
+                    transform: 'rotateY(90deg) translateZ(-500px)',
+                    backgroundImage: 'linear-gradient(to right, #000, transparent)',
+                    maskImage: 'linear-gradient(to bottom, transparent, black, transparent)'
+                  }}
+                >
+                  <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]" />
+                </div>
+
+                {/* Right Wall */}
+                <div 
+                  className="absolute w-[1000px] h-full bg-[#080808] border-l border-white/5"
+                  style={{ 
+                    transform: 'rotateY(-90deg) translateZ(-500px)',
+                    backgroundImage: 'linear-gradient(to left, #000, transparent)',
+                    maskImage: 'linear-gradient(to bottom, transparent, black, transparent)'
+                  }}
+                >
+                  <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]" />
+                </div>
+
+                {/* Floor */}
+                <div 
+                  className="absolute w-full h-[1000px] bg-[#050505]"
+                  style={{ 
+                    transform: 'rotateX(90deg) translateZ(500px)',
+                    backgroundImage: 'radial-gradient(ellipse at center, rgba(251,191,36,0.1) 0%, transparent 70%)',
+                    boxShadow: 'inset 0 0 100px #000'
+                  }}
+                >
+                  <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'repeating-linear-gradient(transparent, transparent 20px, rgba(255,255,255,0.02) 21px)' }} />
+                </div>
+
+                {/* Ceiling */}
+                <div 
+                  className="absolute w-full h-[1000px] bg-black"
+                  style={{ 
+                    transform: 'rotateX(-90deg) translateZ(500px)',
+                    boxShadow: 'inset 0 0 200px #000'
+                  }}
+                />
+              </div>
             </div>
 
-            {/* Right Wall */}
-            <div 
-              className="absolute w-[1000px] h-full bg-[#080808] border-l border-white/5"
-              style={{ 
-                transform: 'rotateY(-90deg) translateZ(-500px)',
-                backgroundImage: 'linear-gradient(to left, #000, transparent)',
-                maskImage: 'linear-gradient(to bottom, transparent, black, transparent)'
-              }}
-            >
-              <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]" />
-            </div>
-
-            {/* Floor */}
-            <div 
-              className="absolute w-full h-[1000px] bg-[#050505]"
-              style={{ 
-                transform: 'rotateX(90deg) translateZ(500px)',
-                backgroundImage: 'radial-gradient(ellipse at center, rgba(251,191,36,0.1) 0%, transparent 70%)',
-                boxShadow: 'inset 0 0 100px #000'
-              }}
-            >
-              <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'repeating-linear-gradient(transparent, transparent 20px, rgba(255,255,255,0.02) 21px)' }} />
-            </div>
-
-            {/* Ceiling */}
-            <div 
-              className="absolute w-full h-[1000px] bg-black"
-              style={{ 
-                transform: 'rotateX(-90deg) translateZ(500px)',
-                boxShadow: 'inset 0 0 200px #000'
-              }}
-            />
+            {/* Global atmospheric fog/glow */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black opacity-60" />
+            <div className="absolute inset-0 bg-gradient-to-r from-black via-transparent to-black opacity-60" />
           </div>
-        </div>
 
-        {/* Global atmospheric fog/glow */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black opacity-60" />
-        <div className="absolute inset-0 bg-gradient-to-r from-black via-transparent to-black opacity-60" />
-      </div>
+          {/* Grid Overlay (Subtle) */}
+          <div className="absolute inset-0 z-1 pointer-events-none opacity-20" 
+            style={{ 
+              backgroundImage: 'radial-gradient(rgba(251,191,36,0.15) 1px, transparent 1px)', 
+              backgroundSize: '40px 40px',
+            }} 
+          />
 
-      {/* Grid Overlay (Subtle) */}
-      <div className="absolute inset-0 z-1 pointer-events-none opacity-20" 
-        style={{ 
-          backgroundImage: 'radial-gradient(rgba(251,191,36,0.15) 1px, transparent 1px)', 
-          backgroundSize: '40px 40px',
-        }} 
-      />
+          {/* Header Info */}
+          <div className="absolute top-8 left-8 flex items-start gap-4 z-20">
+            <div className="w-10 h-10 border border-white flex items-center justify-center p-2">
+              <div className="w-full h-full bg-white" />
+            </div>
+            <div className="flex flex-col">
+              <h1 className="text-lg font-display font-bold text-white leading-none tracking-widest uppercase">Axon Core</h1>
+              <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest mt-1">Neural Network OS V4.0.2</span>
+            </div>
+          </div>
 
-      {/* Header Info */}
-      <div className="absolute top-8 left-8 flex items-start gap-4 z-20">
-        <div className="w-10 h-10 border border-white flex items-center justify-center p-2">
-          <div className="w-full h-full bg-white" />
-        </div>
-        <div className="flex flex-col">
-          <h1 className="text-lg font-display font-bold text-white leading-none tracking-widest uppercase">Axon Core</h1>
-          <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest mt-1">Neural Network OS V4.0.2</span>
-        </div>
-      </div>
-
-      <div className="absolute top-8 right-8 text-right z-20 font-mono">
-        <div className="flex items-center gap-2 justify-end mb-1">
-          <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-          <span className="text-[9px] text-slate-300 uppercase tracking-widest leading-none">Status: Syncing Nodes</span>
-        </div>
-        <span className="text-[9px] text-slate-500 uppercase tracking-widest leading-none">Uptime: 1,428:12:04</span>
-      </div>
+          <div className="absolute top-8 right-8 text-right z-20 font-mono">
+            <div className="flex items-center gap-2 justify-end mb-1">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              <span className="text-[9px] text-slate-300 uppercase tracking-widest leading-none">Status: Syncing Nodes</span>
+            </div>
+            <span className="text-[9px] text-slate-500 uppercase tracking-widest leading-none">Uptime: 1,428:12:04</span>
+          </div>
+        </>
+      )}
 
       {/* Main Visual: Orbiting Rings */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+      <div className={`absolute inset-0 flex items-center justify-center pointer-events-none ${mini ? 'scale-[0.2]' : ''}`}>
         <div className="relative w-80 h-80 flex items-center justify-center">
             {/* Outer Ring */}
             <motion.div 
@@ -151,58 +157,62 @@ export default function PreviewScene({ layoutId, onNavigate }: PreviewSceneProps
         </div>
       </div>
 
-      {/* Hover State Buttons */}
-      <AnimatePresence>
-        {isHovered && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 z-40 bg-black/60 backdrop-blur-[2px] flex items-center justify-center gap-8 px-12"
-          >
-            <motion.button
-              initial={{ x: -20, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              onClick={() => onNavigate?.('automation')}
-              className="flex-1 max-w-[200px] h-14 border border-white/10 bg-[#0A0A0A] hover:bg-white/5 transition-all flex items-center justify-center gap-3 group/btn pointer-events-auto"
-            >
-              <Zap className="w-4 h-4 text-theme-accent group-hover/btn:scale-110 transition-transform" />
-              <span className="text-[10px] font-display font-bold text-white uppercase tracking-[0.3em]">Automation</span>
-            </motion.button>
-            
-            <motion.button
-              initial={{ x: 20, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              onClick={() => onNavigate?.('pentesting')}
-              className="flex-1 max-w-[200px] h-14 border border-theme-accent/30 bg-[#0A0A0A] hover:bg-theme-accent/5 transition-all flex items-center justify-center gap-3 group/btn pointer-events-auto"
-            >
-              <ShieldAlert className="w-4 h-4 text-orange-500 group-hover/btn:scale-110 transition-transform" />
-              <span className="text-[10px] font-display font-bold text-white uppercase tracking-[0.3em]">Pentesting AI</span>
-            </motion.button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {!mini && (
+        <>
+          {/* Hover State Buttons */}
+          <AnimatePresence>
+            {isHovered && (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 z-40 bg-black/60 backdrop-blur-[2px] flex items-center justify-center gap-8 px-12"
+              >
+                <motion.button
+                  initial={{ x: -20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  onClick={() => onNavigate?.('automation')}
+                  className="flex-1 max-w-[200px] h-14 border border-white/10 bg-[#0A0A0A] hover:bg-white/5 transition-all flex items-center justify-center gap-3 group/btn pointer-events-auto"
+                >
+                  <Zap className="w-4 h-4 text-theme-accent group-hover/btn:scale-110 transition-transform" />
+                  <span className="text-[10px] font-display font-bold text-white uppercase tracking-[0.3em]">Automation</span>
+                </motion.button>
+                
+                <motion.button
+                  initial={{ x: 20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  onClick={() => onNavigate?.('pentesting')}
+                  className="flex-1 max-w-[200px] h-14 border border-theme-accent/30 bg-[#0A0A0A] hover:bg-theme-accent/5 transition-all flex items-center justify-center gap-3 group/btn pointer-events-auto"
+                >
+                  <ShieldAlert className="w-4 h-4 text-orange-500 group-hover/btn:scale-110 transition-transform" />
+                  <span className="text-[10px] font-display font-bold text-white uppercase tracking-[0.3em]">Pentesting AI</span>
+                </motion.button>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-      {/* Footer Details */}
-      <div className="absolute bottom-8 left-8 max-w-sm z-20">
-        <p className="text-[10px] font-sans text-slate-500 leading-relaxed uppercase tracking-widest text-balance">
-          Advanced heuristics engine detecting anomalies in real-time across decentralized architectures.
-        </p>
-      </div>
+          {/* Footer Details */}
+          <div className="absolute bottom-8 left-8 max-w-sm z-20">
+            <p className="text-[10px] font-sans text-slate-500 leading-relaxed uppercase tracking-widest text-balance">
+              Advanced heuristics engine detecting anomalies in real-time across decentralized architectures.
+            </p>
+          </div>
 
-      <div className="absolute bottom-8 right-8 flex items-center gap-12 z-20 font-mono">
-        <div className="flex items-center gap-2">
-          <span className="text-[8px] text-slate-600 uppercase tracking-[0.2em]">Secops Framework</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[8px] text-slate-600 uppercase tracking-[0.2em]">Encrypted Tunnel:</span>
-          <span className="text-[8px] text-green-500 uppercase font-bold tracking-[0.2em]">On</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[8px] text-slate-600 uppercase tracking-[0.2em]">Auth Node:</span>
-          <span className="text-[8px] text-blue-500 uppercase font-bold tracking-[0.2em]">Oxfds</span>
-        </div>
-      </div>
-    </div>
+          <div className="absolute bottom-8 right-8 flex items-center gap-12 z-20 font-mono">
+            <div className="flex items-center gap-2">
+              <span className="text-[8px] text-slate-600 uppercase tracking-[0.2em]">Secops Framework</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[8px] text-slate-600 uppercase tracking-[0.2em]">Encrypted Tunnel:</span>
+              <span className="text-[8px] text-green-500 uppercase font-bold tracking-[0.2em]">On</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[8px] text-slate-600 uppercase tracking-[0.2em]">Auth Node:</span>
+              <span className="text-[8px] text-blue-500 uppercase font-bold tracking-[0.2em]">Oxfds</span>
+            </div>
+          </div>
+        </>
+      )}
+    </motion.div>
   );
 }

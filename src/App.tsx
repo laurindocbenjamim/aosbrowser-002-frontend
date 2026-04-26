@@ -1,4 +1,4 @@
-import { Routes, Route, useNavigate, Link } from 'react-router-dom';
+import { Routes, Route, useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import PreviewScene from './components/PreviewScene';
 import { Menu, X, Globe, Terminal, Shield, Zap, Home, ChevronUp, ChevronDown, Maximize2, Minimize2, ArrowLeft, Send, Square, Download, Loader2 } from 'lucide-react';
@@ -20,6 +20,8 @@ const api = axios.create({
 function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const location = useLocation();
+  const isHome = location.pathname === '/';
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -37,8 +39,14 @@ function Navbar() {
     <nav className={`fixed top-0 left-0 w-full z-50 transition-all duration-300 ${scrolled ? 'bg-black/80 backdrop-blur-md border-b border-white/5 py-4' : 'bg-transparent py-6'}`}>
       <div className="max-w-7xl mx-auto px-6 flex justify-between items-center">
         <Link to="/" className="flex items-center gap-4 group">
-          <div className="w-8 h-8 border border-white flex items-center justify-center p-1 transition-transform group-hover:scale-110">
-            <div className="w-full h-full bg-white" />
+          <div className="w-10 h-10 flex items-center justify-center transition-transform group-hover:scale-110 relative">
+            {!isHome ? (
+              <PreviewScene layoutId="elegant-dark" mini />
+            ) : (
+              <div className="w-8 h-8 border border-white flex items-center justify-center p-1">
+                <div className="w-full h-full bg-white" />
+              </div>
+            )}
           </div>
           <h1 className="text-xl font-display font-bold uppercase tracking-widest text-white">Axon Core</h1>
         </Link>
