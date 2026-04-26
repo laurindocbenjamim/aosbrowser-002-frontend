@@ -10,33 +10,34 @@ import { z } from 'zod';
 
 // Zod Schemas for Validation
 const AgentSchema = z.object({
-  target: z.string().url({ message: "Invalid URL format (e.g., https://example.com)" }),
+  target: z.string().min(3, { message: "Target URL is too short" }),
   instruction: z.string().min(10, { message: "Instruction must be at least 10 characters long" }),
   iterations: z.number().min(1).max(100).optional(),
 });
 
 const AutomationSchema = z.object({
-  target: z.string().url({ message: "Invalid URL format (e.g., https://example.com)" }),
+  target: z.string().min(3, { message: "Target URL is too short" }),
   instruction: z.string().min(10, { message: "Instruction must be at least 10 characters long" }),
   context: z.string().optional(),
   autoDecision: z.boolean().optional(),
 });
 
-// Standardized Sanitization & Validation
-const sanitizeInput = (val: string) => {
-  return validator.escape(validator.trim(val));
-};
-
 // @ts-ignore
-const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_BASE_URL || '/';
 
 const getWsUrl = (path: string) => {
+  // If API_URL is relative or points to the current host, use window.location
+  if (API_URL.startsWith('/') || API_URL.includes(window.location.host)) {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${protocol}//${window.location.host}${path.startsWith('/') ? path : '/' + path}`;
+  }
   const wsBase = API_URL.replace(/^http/, 'ws');
   return `${wsBase}${path}`;
 };
 
 const api = axios.create({
   baseURL: API_URL,
+  withCredentials: true,
 });
 
 function Navbar() {
@@ -119,6 +120,14 @@ function Navbar() {
 }
 
 function Console({ title, logs, isExpanded, onToggleExpand, isFullPage = false, onDownload }: { title: string; logs: string[]; isExpanded: boolean; onToggleExpand: () => void; isFullPage?: boolean; onDownload?: () => void }) {
+  const logEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isExpanded) {
+      logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [logs, isExpanded]);
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
@@ -174,12 +183,13 @@ function Console({ title, logs, isExpanded, onToggleExpand, isFullPage = false, 
         {logs.map((log, i) => (
           <div key={i} className="text-xs break-all border-l-2 border-white/5 pl-3 py-1">
             <span className="text-green-500 opacity-60 mr-2 tabular-nums">[{new Date().toLocaleTimeString()}]</span>
-            <span className={log.includes('[ERROR]') || log.includes('[FAILURE]') ? 'text-red-400' : log.includes('[SUCCESS]') || log.includes('[OK]') ? 'text-green-400' : 'text-slate-300'}>
+            <span className={(log.includes('[ERROR]') || log.includes('[FAILURE]') || /vuln|vulnerability|exploit|found|risk|critical|breach/i.test(log)) && !/no vuln|no risk|success/i.test(log.toLowerCase()) ? 'text-red-400 font-bold' : log.includes('[SUCCESS]') || log.includes('[OK]') ? 'text-green-400' : 'text-slate-300'}>
               {log}
             </span>
           </div>
         ))}
         {logs.length === 0 && <span className="text-xs text-slate-600 italic">Waiting for process signals...</span>}
+        <div ref={logEndRef} />
       </div>
     </motion.div>
   );
@@ -214,22 +224,30 @@ function OffensiveAgentPage() {
     return () => { socketRef.current?.close(); };
   }, []);
 
+  useEffect(() => {
+    if (isLoading) setIsConsoleExpanded(true);
+  }, [isLoading]);
+
   const handleLaunch = async () => {
+    setLogs(prev => [...prev, '[SYSTEM] Commencing validation...']);
     const result = AgentSchema.safeParse(formData);
     
     if (!result.success) {
       const errorMsg = result.error.issues[0].message;
       setLogs(prev => [...prev, `[VALIDATION_ERROR] ${errorMsg}`]);
+      setIsConsoleExpanded(true);
       return;
     }
 
     setIsLoading(true);
     setProgress(10);
-    setLogs(prev => [...prev, `[INIT] Engagement protocol sent to ${sanitizeInput(formData.target)}`]);
+    setLogs(prev => [...prev, `[INIT] Engagement protocol sent to ${formData.target}`]);
 
     try {
+// Step 1: Get Session
       let sid = sessionId;
       if (!sid) {
+        setLogs(prev => [...prev, '[SYSTEM] Generating secure session token...']);
         const sResp = await api.post('/pentesting/session');
         sid = sResp.data.session_id;
         setSessionId(sid);
@@ -257,13 +275,18 @@ function OffensiveAgentPage() {
         }
       };
 
-      const response = await api.post('/pentesting/audit', {
-        url: sanitizeInput(formData.target),
-        instruction: sanitizeInput(formData.instruction),
+      const payload: any = {
+        url: formData.target,
+        instruction: formData.instruction,
         max_iterations: formData.iterations,
         session_id: sid,
-        context: `Techniques: ${techniques.join(', ')}`
-      });
+      };
+
+      if (techniques.length > 0) {
+        payload.context = `Techniques: ${techniques.join(', ')}`;
+      }
+
+      const response = await api.post('/pentesting/audit', payload);
       setLogs(prev => [...prev, `[OK] Audit Initialized. Status: ${response.data.status}`]);
     } catch (err: any) {
       let friendlyMessage = 'An unexpected error occurred during the engagement.';
@@ -288,7 +311,7 @@ function OffensiveAgentPage() {
 
   const handleStop = async () => {
     try {
-      await api.post('/pentesting/stop-audit');
+      await api.post(`/pentesting/stop?session_id=${sessionId}`);
       setLogs(prev => [...prev, '[SYSTEM] Abort signal sent. Terminating job...']);
       setIsLoading(false);
       setProgress(0);
@@ -512,30 +535,37 @@ function AgenticOSPage() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  useEffect(() => {
+    if (isLoading) setIsConsoleExpanded(true);
+  }, [isLoading]);
+
   const handleRun = async () => {
+    setLogs(prev => [...prev, '[SYSTEM] Validating instructions...']);
     const result = AutomationSchema.safeParse(formData);
     
     if (!result.success) {
       const errorMsg = result.error.issues[0].message;
       setLogs(prev => [...prev, `[VALIDATION_ERR] ${errorMsg}`]);
       setMessages(prev => [...prev, { sender: 'system', text: `Validation Error: ${errorMsg}` }]);
+      setIsConsoleExpanded(true);
       return;
     }
     
     setMessages(prev => [...prev, { 
       sender: 'user', 
-      text: `Deploying agent to ${formData.target} with instructions: ${formData.instruction.substring(0, 100)}...` 
+      text: `Deploying agent to ${formData.target}` 
     }]);
     
     setIsLoading(true);
     setProgress(5);
-    setLogs(prev => [...prev, `[CMD] Orchestrating node sequence for: ${sanitizeInput(formData.target)}`]);
+    setLogs(prev => [...prev, `[CMD] Orchestrating node sequence for: ${formData.target}`]);
     
     try {
       // Step 1: Get Session
       let sid = sessionId;
       if (!sid) {
-        const sessionResp = await api.post('/automation/session', { user_id: 'guest' });
+        setLogs(prev => [...prev, '[SYSTEM] Initializing node session...']);
+        const sessionResp = await api.post('/automation/session');
         sid = sessionResp.data.session_id;
         setSessionId(sid);
       }
@@ -566,14 +596,19 @@ function AgenticOSPage() {
       };
 
       // Step 3: Run Task
-      const resp = await api.post('/automation/run-task', {
-        url: sanitizeInput(formData.target),
-        instruction: sanitizeInput(formData.instruction),
-        context: sanitizeInput(formData.context),
+      const payload: any = {
+        url: formData.target,
+        instruction: formData.instruction,
         auto_decision: formData.autoDecision,
         session_id: sid,
         max_iterations: 15
-      });
+      };
+
+      if (formData.context) {
+        payload.context = formData.context;
+      }
+
+      const resp = await api.post('/automation/run-task', payload);
       setLogs(prev => [...prev, `[OK] Task queued. Status: ${resp.data.status}`]);
       setProgress(10);
     } catch (err: any) {
@@ -597,7 +632,7 @@ function AgenticOSPage() {
 
   const handleStop = async () => {
     try {
-      await api.post('/automation/stop-task', { session_id: sessionId });
+      await api.post(`/automation/stop-task?session_id=${sessionId}`);
       setLogs(prev => [...prev, '[HALT] Execution command issued. Syncing...']);
       setMessages(prev => [...prev, { sender: 'system', text: 'Termination signal sent.' }]);
       setIsLoading(false);
@@ -721,10 +756,12 @@ function AgenticOSPage() {
                     <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest mb-1.5 px-1">
                       {msg.sender === 'system' ? 'Node Interface' : 'Authenticated User'}
                     </span>
-                    <div className={`max-w-[85%] px-5 py-4 rounded-2xl text-sm leading-relaxed ${
+                    <div className={`max-w-[85%] px-5 py-4 rounded-2xl text-sm leading-relaxed transition-colors duration-300 ${
                       msg.sender === 'user' 
                         ? 'bg-green-600/10 border border-green-600/20 text-green-100 rounded-tr-none shadow-[0_0_20px_rgba(34,197,94,0.05)]' 
-                        : 'bg-white/[0.03] border border-white/5 text-slate-300 rounded-tl-none'
+                        : (/error|failure|timeout|failed|vuln|vulnerability|exploit|found|risk|critical|breach/i.test(msg.text) && !/no vuln|no risk|success/i.test(msg.text))
+                          ? 'bg-red-600/10 border border-red-600/30 text-red-200 rounded-tl-none shadow-[0_0_20px_rgba(239,68,68,0.05)]'
+                          : 'bg-white/[0.03] border border-white/5 text-slate-300 rounded-tl-none'
                     }`}>
                       {msg.text}
                     </div>
