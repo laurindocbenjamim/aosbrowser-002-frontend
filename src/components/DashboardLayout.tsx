@@ -1,6 +1,6 @@
 import { LayoutDashboard, Users, MessageSquare, Terminal, Eye, Settings, Bell, Search, User, Sun, Moon, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface SidebarItemProps {
   icon: any;

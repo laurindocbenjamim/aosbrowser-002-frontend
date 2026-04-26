@@ -2,17 +2,33 @@ import { Routes, Route, useNavigate, Link, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'motion/react';
 import PreviewScene from './components/PreviewScene';
 import { Menu, X, Globe, Terminal, Shield, Zap, Home, ChevronUp, ChevronDown, Maximize2, Minimize2, ArrowLeft, Send, Square, Download, Loader2 } from 'lucide-react';
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import validator from 'validator';
 import { io, Socket } from 'socket.io-client';
 import { jsPDF } from 'jspdf';
+import { z } from 'zod';
+
+// Zod Schemas for Validation
+const AgentSchema = z.object({
+  target: z.string().url({ message: "Invalid URL format (e.g., https://example.com)" }),
+  instruction: z.string().min(10, { message: "Instruction must be at least 10 characters long" }),
+  iterations: z.number().min(1).max(100).optional(),
+});
+
+const AutomationSchema = z.object({
+  target: z.string().url({ message: "Invalid URL format (e.g., https://example.com)" }),
+  instruction: z.string().min(10, { message: "Instruction must be at least 10 characters long" }),
+  context: z.string().optional(),
+  autoDecision: z.boolean().optional(),
+});
 
 // Standardized Sanitization & Validation
 const sanitizeInput = (val: string) => {
   return validator.escape(validator.trim(val));
 };
 
+// @ts-ignore
 const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 const api = axios.create({
@@ -50,7 +66,7 @@ function Navbar() {
               </div>
             )}
           </div>
-          <h1 className="text-xl font-display font-bold uppercase tracking-widest text-white">Axon Core</h1>
+          <h1 className="text-xl font-display font-bold uppercase tracking-widest text-white">ASun Browser.</h1>
         </Link>
 
         {/* Desktop Nav */}
@@ -99,6 +115,13 @@ function Navbar() {
 }
 
 function Console({ title, logs, isExpanded, onToggleExpand, isFullPage = false, onDownload }: { title: string; logs: string[]; isExpanded: boolean; onToggleExpand: () => void; isFullPage?: boolean; onDownload?: () => void }) {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onToggleExpand();
+    }
+  };
+
   return (
     <motion.div 
       initial={false}
@@ -110,7 +133,15 @@ function Console({ title, logs, isExpanded, onToggleExpand, isFullPage = false, 
       }}
       className={`bg-black/95 border-t border-white/10 font-mono overflow-hidden flex flex-col transition-all duration-300 ${isExpanded && isFullPage ? 'w-full' : ''} tech-border`}
     >
-      <div className="h-12 flex justify-between items-center px-6 border-b border-white/5 cursor-pointer shrink-0 bg-[#0a0a0a]" onClick={onToggleExpand}>
+      <div 
+        className="h-12 flex justify-between items-center px-6 border-b border-white/5 cursor-pointer shrink-0 bg-[#0a0a0a]" 
+        onClick={onToggleExpand}
+        onKeyDown={handleKeyDown}
+        role="button"
+        tabIndex={0}
+        aria-expanded={isExpanded}
+        aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${title}`}
+      >
         <div className="flex items-center gap-2">
           <Terminal className="w-3 h-3 text-slate-500" />
           <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">{title}</span>
@@ -121,15 +152,18 @@ function Console({ title, logs, isExpanded, onToggleExpand, isFullPage = false, 
                onClick={(e) => { e.stopPropagation(); onDownload(); }}
                className="p-1.5 hover:bg-white/5 rounded transition-colors"
                title="Download History"
+               aria-label="Download log history"
              >
                <Download className="w-3 h-3 text-slate-400" />
              </button>
            )}
-           {isFullPage ? (
-             isExpanded ? <Minimize2 className="w-3 h-3 text-slate-400" /> : <Maximize2 className="w-3 h-3 text-slate-400" />
-           ) : (
-             isExpanded ? <ChevronDown className="w-3 h-3 text-slate-400" /> : <ChevronUp className="w-3 h-3 text-slate-400" />
-           )}
+           <div className="p-1">
+             {isFullPage ? (
+               isExpanded ? <Minimize2 className="w-3 h-3 text-slate-400" /> : <Maximize2 className="w-3 h-3 text-slate-400" />
+             ) : (
+               isExpanded ? <ChevronDown className="w-3 h-3 text-slate-400" /> : <ChevronUp className="w-3 h-3 text-slate-400" />
+             )}
+           </div>
         </div>
       </div>
       <div className="flex-1 p-6 overflow-y-auto space-y-2 bg-black/40">
@@ -182,12 +216,11 @@ function OffensiveAgentPage() {
   }, []);
 
   const handleLaunch = async () => {
-    if (!validator.isURL(formData.target)) {
-      setLogs(prev => [...prev, '[ERROR] Invalid Target URL format.']);
-      return;
-    }
-    if (validator.isEmpty(formData.instruction)) {
-      setLogs(prev => [...prev, '[ERROR] Instruction cannot be empty.']);
+    const result = AgentSchema.safeParse(formData);
+    
+    if (!result.success) {
+      const errorMsg = result.error.issues[0].message;
+      setLogs(prev => [...prev, `[VALIDATION_ERROR] ${errorMsg}`]);
       return;
     }
 
@@ -206,7 +239,20 @@ function OffensiveAgentPage() {
       setReport(response.data.report);
       setProgress(100);
     } catch (err: any) {
-      setLogs(prev => [...prev, `[FAILURE] Node failure or offline service: ${err.message}`]);
+      let friendlyMessage = 'An unexpected error occurred during the engagement.';
+      if (err.response) {
+        switch (err.response.status) {
+          case 400: friendlyMessage = 'Bad Request: Please verify terminal parameters.'; break;
+          case 401: friendlyMessage = 'Unauthorized: Invalid node credentials.'; break;
+          case 403: friendlyMessage = 'Forbidden: Access to this endpoint is restricted.'; break;
+          case 404: friendlyMessage = 'Not Found: Target node or service unreachable.'; break;
+          case 500: friendlyMessage = 'Internal Server Error: Node failure detected.'; break;
+          default: friendlyMessage = `Communication Error: System code ${err.response.status}`;
+        }
+      } else if (err.request) {
+        friendlyMessage = 'Network Error: Unable to establish connection to the gateway.';
+      }
+      setLogs(prev => [...prev, `[FAILURE] ${friendlyMessage}`]);
       setProgress(0);
     } finally {
       setIsLoading(false);
@@ -448,8 +494,12 @@ function AgenticOSPage() {
   }, [messages]);
 
   const handleRun = async () => {
-    if (!validator.isURL(formData.target)) {
-      setLogs(prev => [...prev, '[ERR] Invalid URI scheme.']);
+    const result = AutomationSchema.safeParse(formData);
+    
+    if (!result.success) {
+      const errorMsg = result.error.issues[0].message;
+      setLogs(prev => [...prev, `[VALIDATION_ERR] ${errorMsg}`]);
+      setMessages(prev => [...prev, { sender: 'system', text: `Validation Error: ${errorMsg}` }]);
       return;
     }
     
@@ -480,8 +530,18 @@ function AgenticOSPage() {
       setMessages(prev => [...prev, { sender: 'system', text: `Task complete: ${resp.data.status}` }]);
       setProgress(100);
     } catch (err: any) {
-      setLogs(prev => [...prev, `[TIMEOUT] Gateway offline: ${err.message}`]);
-      setMessages(prev => [...prev, { sender: 'system', text: `Gateway error: ${err.message}` }]);
+      let friendlyMessage = 'Gateway offline or task interrupted.';
+      if (err.response) {
+        switch (err.response.status) {
+          case 400: friendlyMessage = 'Workflow Error: Invalid execution parameters.'; break;
+          case 403: friendlyMessage = 'Access Restricted: Node permission denied.'; break;
+          case 404: friendlyMessage = 'Target Unavailable: Could not locate endpoint.'; break;
+          case 503: friendlyMessage = 'Service Unavailable: Gateway overloaded.'; break;
+          default: friendlyMessage = `Communication Interruption: Node Code ${err.response.status}`;
+        }
+      }
+      setLogs(prev => [...prev, `[TIMEOUT] ${friendlyMessage}`]);
+      setMessages(prev => [...prev, { sender: 'system', text: `Gateway error: ${friendlyMessage}` }]);
       setProgress(0);
     } finally {
       setIsLoading(false);

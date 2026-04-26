@@ -99,11 +99,9 @@ export default function PreviewScene({ layoutId, onNavigate, mini = false }: Pre
 
           {/* Header Info */}
           <div className="absolute top-8 left-8 flex items-start gap-4 z-20">
-            <div className="w-10 h-10 border border-white flex items-center justify-center p-2">
-              <div className="w-full h-full bg-white" />
-            </div>
+        
             <div className="flex flex-col">
-              <h1 className="text-lg font-display font-bold text-white leading-none tracking-widest uppercase">Axon Core</h1>
+              <h1 className="text-lg font-display font-bold text-white leading-none tracking-widest uppercase">Agentic AI</h1>
               <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest mt-1">Neural Network OS V4.0.2</span>
             </div>
           </div>
