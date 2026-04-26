@@ -33,7 +33,7 @@ export default function PreviewScene({ layoutId, onNavigate, mini = false }: Pre
                 
                 {/* The Light at the End */}
                 <div 
-                  className="absolute w-24 h-24 bg-amber-100 blur-[1px] shadow-[0_0_100px_40px_rgba(251,191,36,0.3)] z-0"
+                  className="absolute w-24 h-24 bg-white blur-[1px] shadow-[0_0_100px_40px_rgba(255,255,255,0.2)] z-0 opacity-40"
                   style={{ transform: 'translateZ(-800px)' }}
                 />
                 
@@ -63,14 +63,33 @@ export default function PreviewScene({ layoutId, onNavigate, mini = false }: Pre
 
                 {/* Floor */}
                 <div 
-                  className="absolute w-full h-[1200px] bg-[#030303]"
+                  className="absolute w-full h-[1200px] bg-[#020202]"
                   style={{ 
-                    transform: 'rotateX(90deg) translateZ(500px)',
-                    backgroundImage: 'radial-gradient(ellipse at center, rgba(251,191,36,0.06) 0%, rgba(10,10,10,0) 80%)',
-                    boxShadow: 'inset 0 0 150px #000'
+                    transform: 'rotateX(90deg) translateZ(540px)',
+                    backgroundImage: 'radial-gradient(ellipse at center, rgba(255,255,255,0.03) 0%, rgba(0,0,0,0) 70%)',
                   }}
                 >
-                  <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'repeating-linear-gradient(transparent, transparent 40px, rgba(255,255,255,1) 41px)', maskImage: 'linear-gradient(to right, transparent, black 25%, black 75%, transparent)' }} />
+                  <div className="absolute inset-0 opacity-[0.02]" style={{ backgroundImage: 'repeating-linear-gradient(transparent, transparent 40px, rgba(255,255,255,1) 41px)', maskImage: 'linear-gradient(to right, transparent, black 25%, black 75%, transparent)' }} />
+                  
+                  {/* Diffused shadow for the central object */}
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                    <motion.div 
+                       animate={{ 
+                         scale: [1, 1.1, 1],
+                         opacity: [0.15, 0.2, 0.15]
+                       }}
+                       transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                       className="w-48 h-48 bg-white/20 blur-[60px] rounded-full"
+                    />
+                    <motion.div 
+                       animate={{ 
+                         scale: [0.8, 0.9, 0.8],
+                         opacity: [0.3, 0.4, 0.3]
+                       }}
+                       transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                       className="w-24 h-24 bg-white/30 blur-[40px] rounded-full absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
+                    />
+                  </div>
                 </div>
 
                 {/* Ceiling */}
@@ -92,7 +111,7 @@ export default function PreviewScene({ layoutId, onNavigate, mini = false }: Pre
           {/* Grid Overlay (Subtle) */}
           <div className="absolute inset-0 z-1 pointer-events-none opacity-20" 
             style={{ 
-              backgroundImage: 'radial-gradient(rgba(251,191,36,0.15) 1px, transparent 1px)', 
+              backgroundImage: 'radial-gradient(rgba(255,255,255,0.08) 1px, transparent 1px)', 
               backgroundSize: '40px 40px',
             }} 
           />
@@ -128,7 +147,9 @@ export default function PreviewScene({ layoutId, onNavigate, mini = false }: Pre
         </div>
       )}
 
-      <div 
+      <motion.div 
+        animate={{ y: [0, -15, 0] }}
+        transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
         className={`absolute inset-0 flex items-center justify-center pointer-events-none ${mini ? 'scale-[0.2]' : ''}`}
       >
         <div className="relative w-80 h-80 flex items-center justify-center">
@@ -234,7 +255,7 @@ export default function PreviewScene({ layoutId, onNavigate, mini = false }: Pre
                </div>
             </motion.div>
         </div>
-      </div>
+      </motion.div>
 
       {!mini && (
         <>
