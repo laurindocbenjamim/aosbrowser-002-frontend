@@ -13,8 +13,10 @@ const sanitizeInput = (val: string) => {
   return validator.escape(validator.trim(val));
 };
 
+const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
+  baseURL: API_URL,
 });
 
 function Navbar() {
@@ -171,7 +173,7 @@ function OffensiveAgentPage() {
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
-    socketRef.current = io(import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000');
+    socketRef.current = io(API_URL);
     socketRef.current.on('agent_log', (data) => {
       setLogs(prev => [...prev, data.message]);
       if (data.progress) setProgress(data.progress);
@@ -244,7 +246,7 @@ function OffensiveAgentPage() {
 
   return (
     <div className="min-h-screen bg-[#050505] text-white pt-24 pb-12 flex flex-col">
-      <div className="max-w-7xl mx-auto w-full flex-1 flex flex-col glass-card border-white/5 rounded-xl overflow-hidden tech-border relative">
+      <div className="max-w-5xl mx-auto w-full flex-1 flex flex-col glass-card border-white/5 rounded-xl overflow-hidden tech-border relative">
         <ProgressHeader progress={progress} status={isLoading ? 'Active' : 'Standby'} />
         
         {/* Header */}
@@ -421,7 +423,7 @@ function AgenticOSPage() {
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
-    socketRef.current = io(import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000');
+    socketRef.current = io(API_URL);
     socketRef.current.on('agent_log', (data) => {
       setLogs(prev => [...prev, data.message]);
       if (data.progress) setProgress(data.progress);
@@ -482,7 +484,7 @@ function AgenticOSPage() {
 
   return (
     <div className="min-h-screen bg-[#050505] text-white pt-24 pb-12 flex flex-col">
-      <div className="max-w-7xl mx-auto w-full flex-1 flex flex-col glass-card border-white/5 rounded-xl overflow-hidden tech-border relative">
+      <div className="max-w-5xl mx-auto w-full flex-1 flex flex-col glass-card border-white/5 rounded-xl overflow-hidden tech-border relative">
         <ProgressHeader progress={progress} status={isLoading ? 'Active' : 'Idle'} />
         
         {/* Header */}

@@ -15,8 +15,6 @@ export default function PreviewScene({ layoutId, onNavigate, mini = false }: Pre
     <motion.div 
       layoutId={layoutId}
       className={`relative overflow-hidden group ${mini ? 'w-full h-full' : 'w-full h-full bg-[#050505] rounded-xl border border-white/5 shadow-2xl'}`}
-      onMouseEnter={() => !mini && setIsHovered(true)}
-      onMouseLeave={() => !mini && setIsHovered(false)}
     >
       {mini && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
@@ -121,7 +119,20 @@ export default function PreviewScene({ layoutId, onNavigate, mini = false }: Pre
       )}
 
       {/* Main Visual: Orbiting Rings */}
-      <div className={`absolute inset-0 flex items-center justify-center pointer-events-none ${mini ? 'scale-[0.2]' : ''}`}>
+      {!mini && (
+        <div 
+          className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none"
+        >
+          <div 
+            className="w-80 h-80 rounded-full pointer-events-auto cursor-pointer"
+            onMouseEnter={() => setIsHovered(true)}
+          />
+        </div>
+      )}
+
+      <div 
+        className={`absolute inset-0 flex items-center justify-center pointer-events-none ${mini ? 'scale-[0.2]' : ''}`}
+      >
         <div className="relative w-80 h-80 flex items-center justify-center">
             {/* Outer Ring */}
             <motion.div 
@@ -174,7 +185,8 @@ export default function PreviewScene({ layoutId, onNavigate, mini = false }: Pre
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="absolute inset-0 z-40 bg-black/60 backdrop-blur-[2px] flex items-center justify-center gap-8 px-12"
+                onMouseLeave={() => setIsHovered(false)}
+                className="absolute inset-0 z-40 bg-black/60 backdrop-blur-[2px] flex items-center justify-center gap-8 px-12 pointer-events-auto"
               >
                 <motion.button
                   initial={{ x: -20, opacity: 0 }}
