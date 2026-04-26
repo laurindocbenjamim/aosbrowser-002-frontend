@@ -75,7 +75,14 @@ export function Console({ title, logs, isExpanded, onToggleExpand, isFullPage = 
         {logs.map((log, i) => (
           <div key={i} className="text-xs break-all border-l-2 border-white/5 pl-3 py-1">
             <span className="text-green-500 opacity-60 mr-2 tabular-nums">[{new Date().toLocaleTimeString()}]</span>
-            <span className={(log.includes('[ERROR]') || log.includes('[FAILURE]') || /vuln|vulnerability|exploit|found|risk|critical|breach/i.test(log)) && !/no vuln|no risk|success/i.test(log.toLowerCase()) ? 'text-red-400 font-bold' : log.includes('[SUCCESS]') || log.includes('[OK]') ? 'text-green-400' : 'text-slate-300'}>
+            <span className={
+              ((log.includes('[ERROR]') || log.includes('[FAILURE]') || /found|exploit|critical|vulnerable|injection|breach/i.test(log)) && 
+               !/no vuln|no risk|success|scanning|checking/i.test(log.toLowerCase())) 
+              ? 'text-red-400 font-bold' 
+              : (log.includes('[SUCCESS]') || log.includes('[OK]') || log.includes('COMPLETED')) 
+                ? 'text-green-400' 
+                : 'text-slate-300'
+            }>
               {log}
             </span>
           </div>

@@ -1,8 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Terminal, Shield, Zap, Loader2, Square, Download } from 'lucide-react';
+import { 
+  ArrowLeft, Terminal, Shield, Zap, Loader2, Square, Download, 
+  Copy, Check, FileText, FileJson, FileCode, History, X,
+  MoreVertical
+} from 'lucide-react';
 import { jsPDF } from 'jspdf';
+import { v4 as uuidv4 } from 'uuid';
 import { api, getWsUrl } from '../lib/api';
 import { AgentSchema } from '../lib/schemas';
 import { Console } from '../components/common/Console';
@@ -12,17 +17,65 @@ export default function OffensiveAgentPage() {
   const navigate = useNavigate();
   const [logs, setLogs] = useState<string[]>(['[SYSTEM] Waiting for initialization...']);
   const [isConsoleExpanded, setIsConsoleExpanded] = useState(false);
-  const [formData, setFormData] = useState({ target: '', instruction: '', iterations: 15 });
+  const [formData, setFormData] = useState({ 
+    target: 'https://frontend-saas-tests.onrender.com', 
+    instruction: 'Act as a Senior Penetration Tester. Conduct a comprehensive security assessment of the authentication flow (landing page, registration, and login)', 
+    iterations: 15 
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [report, setReport] = useState<string | null>(null);
   const [techniques, setTechniques] = useState<string[]>(['SQL Injection', 'XSS', 'CSRF', 'SSRF', 'Auth Bypass', 'Dir Traversal', 'IDOR']);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [userUuid, setUserUuid] = useState<string>('');
+  const [copied, setCopied] = useState(false);
+  const [serverStatus, setServerStatus] = useState<'online' | 'offline'>('offline');
+  const [history, setHistory] = useState<any[]>([]);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const [selectedHistoryItem, setSelectedHistoryItem] = useState<any>(null);
+  
   const socketRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    return () => { socketRef.current?.close(); };
+    // Persistent User UUID
+    let uuid = localStorage.getItem('asun_user_uuid');
+    if (!uuid) {
+      uuid = uuidv4();
+      localStorage.setItem('asun_user_uuid', uuid);
+    }
+    setUserUuid(uuid);
+
+    // Initial server check and history fetch
+    checkServerHealth();
+    fetchHistory(uuid);
+
+    const healthInterval = setInterval(checkServerHealth, 30000);
+    return () => { 
+      socketRef.current?.close(); 
+      clearInterval(healthInterval);
+    };
   }, []);
+
+  const checkServerHealth = async () => {
+    try {
+      await api.get('/pentesting/session'); 
+      setServerStatus('online');
+    } catch (err) {
+      setServerStatus('offline');
+    }
+  };
+
+  const fetchHistory = async (uuid: string) => {
+    try {
+      const resp = await api.get(`/pentesting/history?user_uuid=${uuid}`);
+      if (Array.isArray(resp.data)) {
+        setHistory(resp.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch history', err);
+    }
+  };
 
   useEffect(() => {
     if (isLoading) setIsConsoleExpanded(true);
@@ -47,12 +100,11 @@ export default function OffensiveAgentPage() {
       let sid = sessionId;
       if (!sid) {
         setLogs(prev => [...prev, '[SYSTEM] Generating secure session token...']);
-        const sResp = await api.post('/pentesting/session');
+        const sResp = await api.post('/pentesting/session', { user_id: userUuid });
         sid = sResp.data.session_id;
         setSessionId(sid);
       }
 
-      // Connect WebSocket
       if (socketRef.current) socketRef.current.close();
       const ws = new WebSocket(getWsUrl(`/pentesting/ws/${sid}`));
       socketRef.current = ws;
@@ -71,6 +123,7 @@ export default function OffensiveAgentPage() {
           setLogs(prev => [...prev, '[SUCCESS] Engagement completed.']);
           setReport(data.data.report);
           setProgress(100);
+          fetchHistory(userUuid);
         }
       };
 
@@ -88,20 +141,7 @@ export default function OffensiveAgentPage() {
       const response = await api.post('/pentesting/audit', payload);
       setLogs(prev => [...prev, `[OK] Audit Initialized. Status: ${response.data.status}`]);
     } catch (err: any) {
-      let friendlyMessage = 'An unexpected error occurred during the engagement.';
-      if (err.response) {
-        switch (err.response.status) {
-          case 400: friendlyMessage = 'Bad Request: Please verify terminal parameters.'; break;
-          case 401: friendlyMessage = 'Unauthorized: Invalid node credentials.'; break;
-          case 403: friendlyMessage = 'Forbidden: Access to this endpoint is restricted.'; break;
-          case 404: friendlyMessage = 'Not Found: Target node or service unreachable.'; break;
-          case 500: friendlyMessage = 'Internal Server Error: Node failure detected.'; break;
-          default: friendlyMessage = `Communication Error: System code ${err.response.status}`;
-        }
-      } else if (err.request) {
-        friendlyMessage = 'Network Error: Unable to establish connection to the gateway.';
-      }
-      setLogs(prev => [...prev, `[FAILURE] ${friendlyMessage}`]);
+      setLogs(prev => [...prev, `[FAILURE] Communication error: ${err.message}`]);
       setProgress(0);
     } finally {
       setIsLoading(false);
@@ -119,24 +159,65 @@ export default function OffensiveAgentPage() {
     }
   };
 
-  const downloadPDFReport = () => {
-    if (!report) return;
-    const doc = new jsPDF();
-    doc.setFontSize(20);
-    doc.text('Security Audit Report', 20, 20);
-    doc.setFontSize(12);
-    const splitText = doc.splitTextToSize(report, 180);
-    doc.text(splitText, 20, 30);
-    doc.save('offensive_audit_report.pdf');
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(userUuid);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
-  const downloadHistory = () => {
+  const exportReport = (format: 'pdf' | 'txt' | 'json' | 'xml', content?: string) => {
+    const reportContent = content || report;
+    if (!reportContent) return;
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `audit_report_${timestamp}`;
+
+    switch (format) {
+      case 'pdf':
+        const doc = new jsPDF();
+        doc.setFontSize(20);
+        doc.text('Security Audit Report', 20, 20);
+        doc.setFontSize(12);
+        const splitText = doc.splitTextToSize(reportContent, 180);
+        doc.text(splitText, 20, 30);
+        doc.save(`${filename}.pdf`);
+        break;
+      case 'txt':
+        downloadFile(`${filename}.txt`, reportContent, 'text/plain');
+        break;
+      case 'json':
+        const jsonData = JSON.stringify({
+          user_uuid: userUuid,
+          timestamp: new Date().toISOString(),
+          report: reportContent,
+          logs: logs
+        }, null, 2);
+        downloadFile(`${filename}.json`, jsonData, 'application/json');
+        break;
+      case 'xml':
+        const xmlData = `<?xml version="1.0" encoding="UTF-8"?>
+<audit_report>
+  <user_uuid>${userUuid}</user_uuid>
+  <timestamp>${new Date().toISOString()}</timestamp>
+  <content>${reportContent.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</content>
+</audit_report>`;
+        downloadFile(`${filename}.xml`, xmlData, 'application/xml');
+        break;
+    }
+    setIsExportMenuOpen(false);
+  };
+
+  const downloadFile = (name: string, content: string, type: string) => {
     const element = document.createElement("a");
-    const file = new Blob([logs.join('\n')], {type: 'text/plain'});
+    const file = new Blob([content], {type: type});
     element.href = URL.createObjectURL(file);
-    element.download = "engagement_history.txt";
+    element.download = name;
     document.body.appendChild(element);
     element.click();
+  };
+
+  const downloadHistoryLogs = () => {
+    downloadFile("engagement_history.txt", logs.join('\n'), 'text/plain');
   };
 
   return (
@@ -151,24 +232,46 @@ export default function OffensiveAgentPage() {
               <ArrowLeft className="w-4 h-4 text-slate-400" />
             </button>
             <div className="flex items-center gap-4">
-              <div className="w-2 h-2 rounded-full bg-red-600 animate-pulse shadow-[0_0_10px_#ef4444]" />
+              <div className={`w-2 h-2 rounded-full ${serverStatus === 'online' ? 'bg-green-500 shadow-[0_0_10px_#22c55e]' : 'bg-red-600 shadow-[0_0_10px_#ef4444]'} animate-pulse`} />
               <h1 className="text-2xl font-display font-bold tracking-tight">Offensive Agent v2.0</h1>
             </div>
           </div>
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4">
              <button 
-               onClick={downloadHistory}
+               onClick={() => setIsHistoryOpen(true)}
                className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-xs font-mono uppercase tracking-widest hover:bg-white/10 transition-colors flex items-center gap-2"
              >
-               <Terminal className="w-3 h-3" /> Audit History
+               <History className="w-3 h-3" /> Historic
              </button>
-             <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest bg-black/40 px-3 py-1 rounded-full border border-white/5">Session: {isLoading ? 'Engaged' : 'Standby'}</span>
+             <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest bg-black/40 px-3 py-1 rounded-full border border-white/5">
+                Session: {isLoading ? 'Engaged' : 'Standby'}
+             </span>
           </div>
         </div>
 
         <div className="flex-1 flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-white/5">
           {/* Sidebar */}
           <aside className="w-full md:w-80 p-6 flex flex-col gap-6 overflow-y-auto bg-black/20">
+            {/* User UUID Section */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">User UUID</label>
+              <div className="flex items-center gap-2 bg-black/40 border border-white/10 rounded px-1 group">
+                <input 
+                  type="text" 
+                  value={userUuid}
+                  readOnly
+                  className="flex-1 bg-transparent border-none py-2 px-2 text-[10px] font-mono outline-none text-slate-400"
+                />
+                <button 
+                  onClick={copyToClipboard}
+                  className="p-1.5 hover:bg-white/5 rounded transition-colors text-slate-500 hover:text-white"
+                  title="Copy UUID"
+                >
+                  {copied ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+                </button>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <label className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">Target URL</label>
               <input 
@@ -186,7 +289,7 @@ export default function OffensiveAgentPage() {
                 value={formData.instruction}
                 onChange={(e) => setFormData({...formData, instruction: e.target.value})}
                 className="w-full h-32 bg-black/40 border border-white/10 rounded px-4 py-2 text-sm focus:border-red-600/50 outline-none transition-colors resize-none font-sans"
-                placeholder="Act as a Senior Penetration Tester. Conduct a comprehensive security assessment of the authentication flow (landing page, registration, and login)"
+                placeholder="Describe attack parameters..."
               />
             </div>
 
@@ -244,13 +347,20 @@ export default function OffensiveAgentPage() {
             </div>
 
             {report && (
-               <button 
-                  onClick={downloadPDFReport}
-                  className="w-full py-3 bg-white/5 border border-white/10 text-white font-display font-bold text-xs uppercase tracking-[0.2em] hover:bg-white/10 transition-all flex items-center justify-center gap-2"
-                >
-                  <Download className="w-3 h-3" />
-                  Export tactical report
-                </button>
+               <div className="relative">
+                 <button 
+                    onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+                    className="w-full py-3 bg-white/5 border border-white/10 text-white font-display font-bold text-xs uppercase tracking-[0.2em] hover:bg-white/10 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Download className="w-3 h-3" />
+                    Export tactical report
+                  </button>
+                  <ExportMenu 
+                    isOpen={isExportMenuOpen} 
+                    onClose={() => setIsExportMenuOpen(false)} 
+                    onExport={exportReport} 
+                  />
+               </div>
             )}
           </aside>
 
@@ -284,7 +394,11 @@ export default function OffensiveAgentPage() {
                         <h2 className="text-2xl font-display font-bold text-red-600 uppercase tracking-widest m-0">Vulnerability Report</h2>
                         <span className="text-[10px] font-mono text-slate-500 uppercase">{new Date().toLocaleDateString()}</span>
                       </div>
-                      <div className="text-slate-300 text-sm whitespace-pre-wrap font-mono leading-relaxed">
+                      <div className={`text-sm whitespace-pre-wrap font-mono leading-relaxed ${
+                        /high|critical|vulnerability|exploit|found|vulnerable|risk/i.test(report) && !/no risk|success/i.test(report.toLowerCase())
+                        ? 'text-red-400'
+                        : 'text-slate-300'
+                      }`}>
                         {report}
                       </div>
                     </div>
@@ -298,11 +412,185 @@ export default function OffensiveAgentPage() {
               logs={logs} 
               isExpanded={isConsoleExpanded} 
               onToggleExpand={() => setIsConsoleExpanded(!isConsoleExpanded)}
-              onDownload={downloadHistory}
+              onDownload={downloadHistoryLogs}
             />
           </main>
         </div>
       </div>
+
+      {/* Overlays */}
+      <HistoryPanel 
+        isOpen={isHistoryOpen} 
+        onClose={() => setIsHistoryOpen(false)} 
+        history={history}
+        onSelectItem={(item) => setSelectedHistoryItem(item)}
+      />
+
+      <AnimatePresence>
+        {selectedHistoryItem && (
+          <HistoryExportModal 
+            item={selectedHistoryItem} 
+            onClose={() => setSelectedHistoryItem(null)} 
+            onExport={exportReport}
+          />
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function ExportMenu({ isOpen, onClose, onExport }: { isOpen: boolean, onClose: () => void, onExport: (format: 'pdf' | 'txt' | 'json' | 'xml') => void }) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="absolute bottom-full left-0 w-full mb-2 bg-[#121212] border border-white/10 rounded-lg shadow-2xl z-50 overflow-hidden">
+      <div className="p-2 space-y-1">
+        <button onClick={() => onExport('pdf')} className="w-full flex items-center gap-3 px-3 py-2 hover:bg-white/5 rounded text-xs font-mono text-slate-300 transition-colors">
+          <FileText className="w-3.5 h-3.5 text-red-500" /> PDF Tactical Report
+        </button>
+        <button onClick={() => onExport('txt')} className="w-full flex items-center gap-3 px-3 py-2 hover:bg-white/5 rounded text-xs font-mono text-slate-300 transition-colors">
+          <Terminal className="w-3.5 h-3.5 text-slate-400" /> TXT Raw Logs
+        </button>
+        <button onClick={() => onExport('json')} className="w-full flex items-center gap-3 px-3 py-2 hover:bg-white/5 rounded text-xs font-mono text-slate-300 transition-colors">
+          <FileJson className="w-3.5 h-3.5 text-blue-400" /> JSON Data Export
+        </button>
+        <button onClick={() => onExport('xml')} className="w-full flex items-center gap-3 px-3 py-2 hover:bg-white/5 rounded text-xs font-mono text-slate-300 transition-colors">
+          <FileCode className="w-3.5 h-3.5 text-orange-400" /> XML Structured
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function HistoryPanel({ isOpen, onClose, history, onSelectItem }: { isOpen: boolean, onClose: () => void, history: any[], onSelectItem: (item: any) => void }) {
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100]"
+          />
+          <motion.div 
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            className="fixed top-0 right-0 h-full w-full max-w-md bg-[#0a0a0a] border-l border-white/10 z-[110] shadow-2xl flex flex-col"
+          >
+            <div className="p-6 border-b border-white/10 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <History className="w-5 h-5 text-red-600" />
+                <h3 className="text-xl font-display font-bold uppercase tracking-widest">Audit Historic</h3>
+              </div>
+              <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {history.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-slate-500 gap-4 opacity-50">
+                  <Terminal className="w-12 h-12" />
+                  <p className="text-xs font-mono uppercase tracking-[0.2em]">No records found</p>
+                </div>
+              ) : (
+                history.map((item, idx) => (
+                  <div 
+                    key={idx}
+                    onClick={() => onSelectItem(item)}
+                    className="p-4 bg-white/[0.02] border border-white/5 rounded-xl hover:border-red-600/30 cursor-pointer transition-all group"
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                       <span className="text-[10px] font-mono text-red-600 uppercase tracking-widest">#{idx + 1} Audit</span>
+                       <span className="text-[9px] font-mono text-slate-600">{new Date(item.timestamp).toLocaleString()}</span>
+                    </div>
+                    <div className="text-sm font-bold mb-1 truncate text-slate-200 group-hover:text-white">{item.url}</div>
+                    <div className="text-[10px] text-slate-500 line-clamp-2 italic">"{item.instruction}"</div>
+                    <div className="mt-3 flex items-center gap-2">
+                       <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                       <span className="text-[9px] font-mono text-slate-400 uppercase tracking-widest">{item.result?.status || 'Complete'}</span>
+                       <div className="flex-1" />
+                       <MoreVertical className="w-3 h-3 text-slate-600" />
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}
+
+function HistoryExportModal({ item, onClose, onExport }: { item: any, onClose: () => void, onExport: (format: 'pdf' | 'txt' | 'json' | 'xml', content: string) => void }) {
+  return (
+    <div className="fixed inset-0 flex items-center justify-center z-[150] p-4">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="fixed inset-0 bg-black/80 backdrop-blur-md"
+      />
+      <motion.div 
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.9, opacity: 0 }}
+        className="w-full max-w-xl bg-[#0d0d0d] border border-white/10 rounded-2xl shadow-2xl relative z-10 overflow-hidden"
+      >
+        <div className="p-6 border-b border-white/10 flex items-center justify-between bg-gradient-to-r from-red-600/10 to-transparent">
+          <div>
+            <h4 className="text-lg font-display font-bold uppercase tracking-widest">Session Intelligence</h4>
+            <p className="text-[10px] font-mono text-slate-500 mt-1 uppercase tracking-widest">{item.url}</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        
+        <div className="p-8">
+          <div className="grid grid-cols-2 gap-4">
+             <button 
+              onClick={() => onExport('pdf', item.result.report)} 
+              className="flex flex-col items-center gap-3 p-6 bg-white/[0.02] border border-white/5 rounded-xl hover:bg-red-600/10 hover:border-red-600/30 transition-all group"
+            >
+               <FileText className="w-8 h-8 text-red-500 group-hover:scale-110 transition-transform" />
+               <span className="text-[10px] font-mono uppercase tracking-[0.2em]">Portable Document</span>
+             </button>
+             <button 
+              onClick={() => onExport('txt', item.result.report)} 
+              className="flex flex-col items-center gap-3 p-6 bg-white/[0.02] border border-white/5 rounded-xl hover:bg-white/5 transition-all group"
+            >
+               <Terminal className="w-8 h-8 text-slate-400 group-hover:scale-110 transition-transform" />
+               <span className="text-[10px] font-mono uppercase tracking-[0.2em]">Plain Terminal</span>
+             </button>
+             <button 
+              onClick={() => onExport('json', item.result.report)} 
+              className="flex flex-col items-center gap-3 p-6 bg-white/[0.02] border border-white/5 rounded-xl hover:bg-blue-600/10 hover:border-blue-600/30 transition-all group"
+            >
+               <FileJson className="w-8 h-8 text-blue-400 group-hover:scale-110 transition-transform" />
+               <span className="text-[10px] font-mono uppercase tracking-[0.2em]">Semantic JSON</span>
+             </button>
+             <button 
+              onClick={() => onExport('xml', item.result.report)} 
+              className="flex flex-col items-center gap-3 p-6 bg-white/[0.02] border border-white/5 rounded-xl hover:bg-orange-600/10 hover:border-orange-600/30 transition-all group"
+            >
+               <FileCode className="w-8 h-8 text-orange-400 group-hover:scale-110 transition-transform" />
+               <span className="text-[10px] font-mono uppercase tracking-[0.2em]">Markup XML</span>
+             </button>
+          </div>
+
+          <div className="mt-8 p-4 bg-black/40 border border-white/5 rounded-lg">
+             <h5 className="text-[9px] font-mono text-slate-500 uppercase tracking-widest mb-2">Tactical Summary</h5>
+             <div className="text-xs text-slate-400 line-clamp-3">
+               {item.result.report ? item.result.report.substring(0, 300) : "No report content available."}
+             </div>
+          </div>
+        </div>
+      </motion.div>
     </div>
   );
 }
