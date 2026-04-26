@@ -415,27 +415,49 @@ function OffensiveAgentPage() {
 function AgenticOSPage() {
   const navigate = useNavigate();
   const [logs, setLogs] = useState<string[]>(['[SYSTEM] Core online... awaiting task.']);
+  const [messages, setMessages] = useState<{sender: 'system' | 'user', text: string}[]>([
+    { sender: 'system', text: 'Welcome to the Agent Console. Configure the task parameters in the sidebar and deploy the agent.' }
+  ]);
   const [isConsoleExpanded, setIsConsoleExpanded] = useState(false);
-  const [formData, setFormData] = useState({ target: '', instruction: '' });
+  const [formData, setFormData] = useState({ 
+    target: 'https://frontend-saas-tests.onrender.com/register', 
+    instruction: '1. Execution Steps: Step 1 (Registration): Fill out the registration form with the following details: First Name: Feti, Last Name: Fetovic, Email: "fetovic@email.com", Password: "Fetovic123!", Confirm Password: "Fetovic123!" and submit. Step 2 (Login): Once you signup from the register page,you will be redirected to the login page,then log in with the credentials you just created. Step 3 (Navigation): After entering the dashboard, locate the sidebar and click on the "Users" menu. Step 4 (Action): On the users page, use the "Provision New User" button to create at least 3 new distinct users.',
+    context: '',
+    autoDecision: false
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     socketRef.current = io(API_URL);
     socketRef.current.on('agent_log', (data) => {
       setLogs(prev => [...prev, data.message]);
       if (data.progress) setProgress(data.progress);
+      if (data.type === 'response' || data.type === 'result') {
+        setMessages(prev => [...prev, { sender: 'system', text: data.message }]);
+      }
     });
     return () => { socketRef.current?.disconnect(); };
   }, []);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   const handleRun = async () => {
     if (!validator.isURL(formData.target)) {
       setLogs(prev => [...prev, '[ERR] Invalid URI scheme.']);
       return;
     }
+    
+    setMessages(prev => [...prev, { 
+      sender: 'user', 
+      text: `Deploying agent to ${formData.target} with instructions: ${formData.instruction.substring(0, 100)}...` 
+    }]);
+    
     setIsLoading(true);
     setProgress(5);
     setLogs(prev => [...prev, `[CMD] Orchestrating node sequence for: ${sanitizeInput(formData.target)}`]);
@@ -450,12 +472,16 @@ function AgenticOSPage() {
       const resp = await api.post('/automation/run-task', {
         url: sanitizeInput(formData.target),
         instruction: sanitizeInput(formData.instruction),
+        context: sanitizeInput(formData.context),
+        auto_decision: formData.autoDecision,
         session_id: sid
       });
       setLogs(prev => [...prev, `[OK] Task cycle completed. Status: ${resp.data.status}`]);
+      setMessages(prev => [...prev, { sender: 'system', text: `Task complete: ${resp.data.status}` }]);
       setProgress(100);
     } catch (err: any) {
       setLogs(prev => [...prev, `[TIMEOUT] Gateway offline: ${err.message}`]);
+      setMessages(prev => [...prev, { sender: 'system', text: `Gateway error: ${err.message}` }]);
       setProgress(0);
     } finally {
       setIsLoading(false);
@@ -466,6 +492,7 @@ function AgenticOSPage() {
     try {
       await api.post('/automation/stop-task', { session_id: sessionId });
       setLogs(prev => [...prev, '[HALT] Execution command issued. Syncing...']);
+      setMessages(prev => [...prev, { sender: 'system', text: 'Termination signal sent.' }]);
       setIsLoading(false);
       setProgress(0);
     } catch (err: any) {
@@ -494,24 +521,26 @@ function AgenticOSPage() {
               <ArrowLeft className="w-4 h-4 text-slate-400" />
             </button>
             <div className="flex items-center gap-4">
-              <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]" />
+              <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)] animate-pulse" />
               <h1 className="text-xl font-display font-bold">Agentic OS</h1>
             </div>
           </div>
-          <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest bg-black/40 px-3 py-1 rounded-full border border-white/5">Secure Connection: {isLoading ? 'Streaming' : 'Idle'}</span>
+          <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest bg-black/40 px-3 py-1 rounded-full border border-white/5">
+            Secure Connection: {isLoading ? 'Streaming' : 'Idle'}
+          </span>
         </div>
 
-        <div className="flex-1 flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-white/5 font-sans">
+        <div className="flex-1 flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-white/5">
           {/* Sidebar */}
           <aside className="w-full md:w-80 p-6 flex flex-col gap-6 overflow-y-auto bg-black/20">
             <div className="space-y-2">
               <label className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">Target URL</label>
               <input 
-                type="text" 
+                type="url" 
                 value={formData.target}
                 onChange={(e) => setFormData({...formData, target: e.target.value})}
-                className="w-full bg-[#0a0a0a] border border-white/10 rounded px-4 py-2 text-sm focus:border-green-500/50 outline-none transition-colors font-mono"
-                placeholder="https://app.instance.internal"
+                placeholder="https://example.com"
+                className="w-full bg-[#0a0a0a] border border-white/10 rounded px-4 py-2.5 text-sm focus:border-green-500/50 outline-none transition-all font-mono"
               />
             </div>
 
@@ -520,26 +549,51 @@ function AgenticOSPage() {
               <textarea 
                 value={formData.instruction}
                 onChange={(e) => setFormData({...formData, instruction: e.target.value})}
-                className="w-full h-32 bg-[#0a0a0a] border border-white/10 rounded px-4 py-2 text-sm focus:border-green-500/50 outline-none transition-colors resize-none font-sans"
+                className="w-full h-32 bg-[#0a0a0a] border border-white/10 rounded px-4 py-2 text-sm focus:border-green-500/50 outline-none transition-all resize-none scrollbar-hide"
                 placeholder="Enter automation steps..."
               />
             </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">Context Data (Optional)</label>
+              <textarea 
+                value={formData.context}
+                onChange={(e) => setFormData({...formData, context: e.target.value})}
+                className="w-full h-24 bg-[#0a0a0a] border border-white/10 rounded px-4 py-2 text-sm focus:border-green-500/50 outline-none transition-all resize-none scrollbar-hide"
+                placeholder="Provide additional details..."
+              />
+            </div>
+
+            <div className="p-3 bg-white/[0.02] border border-white/10 rounded-lg flex items-center justify-between">
+              <span className="text-[10px] font-mono text-slate-300 uppercase tracking-widest">Auto-Decision</span>
+              <button 
+                onClick={() => setFormData({...formData, autoDecision: !formData.autoDecision})}
+                className={`w-10 h-5 rounded-full transition-colors relative ${formData.autoDecision ? 'bg-green-600' : 'bg-slate-700'}`}
+              >
+                <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${formData.autoDecision ? 'left-6' : 'left-1'}`} />
+              </button>
+            </div>
+
+            <button className="w-full py-3 border border-dashed border-white/10 rounded-lg text-[10px] font-mono text-slate-500 uppercase tracking-widest hover:bg-white/5 transition-colors flex items-center justify-center gap-2">
+              <Download className="w-3 h-3" /> Attach Context File
+            </button>
 
             <div className="flex flex-col gap-3">
               <button 
                 onClick={handleRun}
                 disabled={isLoading}
-                className="w-full py-3 bg-green-600 text-black font-display font-bold text-xs uppercase tracking-[0.2em] hover:bg-green-500 transition-all disabled:opacity-50 shadow-lg shadow-green-500/20"
+                className="w-full py-3.5 bg-green-600 text-black font-display font-bold text-xs uppercase tracking-[0.2em] hover:bg-green-500 transition-all disabled:opacity-50 shadow-lg shadow-green-500/10 flex items-center justify-center gap-2"
               >
+                {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
                 {isLoading ? 'Processing...' : 'Deploy Automation'}
               </button>
 
               {isLoading && (
                 <button 
                   onClick={handleStop}
-                  className="w-full py-3 border border-green-600/50 text-green-500 font-display font-bold text-xs uppercase tracking-[0.2em] hover:bg-green-600/10 transition-all flex items-center justify-center gap-2"
+                  className="w-full py-3.5 border border-red-600/50 text-red-500 font-display font-bold text-xs uppercase tracking-[0.2em] hover:bg-red-600/10 transition-all flex items-center justify-center gap-2"
                 >
-                  <Square className="w-3 h-3 fill-current" />
+                  <Square className="w-4 h-4 fill-current" />
                   Stop Task
                 </button>
               )}
@@ -547,17 +601,30 @@ function AgenticOSPage() {
           </aside>
 
           {/* Main Area */}
-          <main className="flex-1 flex flex-col relative justify-between bg-[#080808]">
-            <div className="p-8">
-              <div className="space-y-4">
-                <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">System Interface</span>
-                <div className="bg-white/[0.02] border border-white/5 p-8 rounded-xl max-w-2xl backdrop-blur-sm relative overflow-hidden group">
-                  <div className="absolute top-0 left-0 w-1 h-full bg-green-500/20 group-hover:bg-green-500/40 transition-colors" />
-                  <p className="text-sm text-slate-300 leading-relaxed font-sans opacity-80 uppercase tracking-wider">
-                    Neural process manager online. Define orchestration parameters in the control unit to initiate autonomous workflow execution.
-                  </p>
-                </div>
-              </div>
+          <main className="flex-1 flex flex-col relative bg-[#080808] overflow-hidden">
+            <div className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth">
+              <AnimatePresence initial={false}>
+                {messages.map((msg, i) => (
+                  <motion.div 
+                    key={i}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
+                  >
+                    <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest mb-1.5 px-1">
+                      {msg.sender === 'system' ? 'Node Interface' : 'Authenticated User'}
+                    </span>
+                    <div className={`max-w-[85%] px-5 py-4 rounded-2xl text-sm leading-relaxed ${
+                      msg.sender === 'user' 
+                        ? 'bg-green-600/10 border border-green-600/20 text-green-100 rounded-tr-none shadow-[0_0_20px_rgba(34,197,94,0.05)]' 
+                        : 'bg-white/[0.03] border border-white/5 text-slate-300 rounded-tl-none'
+                    }`}>
+                      {msg.text}
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+              <div ref={chatEndRef} />
             </div>
 
             <Console 
