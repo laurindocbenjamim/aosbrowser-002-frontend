@@ -169,41 +169,52 @@ export default function PreviewScene({ layoutId, onNavigate, mini = false }: Pre
                   <span className="text-[10px] font-mono font-bold text-white uppercase tracking-widest">AI</span>
                </div>
                {/* Back: Agents */}
-               <div className="absolute inset-0 border border-white/40 bg-gradient-to-br from-white/20 via-white/40 to-white/10 backdrop-blur-md flex items-center justify-center overflow-hidden" style={{ transform: 'translateZ(-32px) rotateY(180deg)' }}>
+               <div className="absolute inset-0 border border-cyan-400/50 bg-gradient-to-br from-cyan-100/30 via-white/40 to-blue-200/30 backdrop-blur-md flex items-center justify-center overflow-hidden" style={{ transform: 'translateZ(-32px) rotateY(180deg)' }}>
+                  {/* Prismatic Refraction Effect */}
                   <motion.div 
                     animate={{ 
-                      x: ['-100%', '200%'],
-                      opacity: [0, 1, 0]
+                      x: ['-200%', '200%'],
+                      rotate: [0, 20]
                     }}
                     transition={{ 
-                      duration: 2, 
+                      duration: 3, 
                       repeat: Infinity, 
-                      ease: "easeInOut",
-                      repeatDelay: 1
+                      ease: "linear"
                     }}
-                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/80 to-transparent skew-x-12"
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400/20 via-white/60 via-pink-400/20 to-transparent skew-x-25 w-[300%]"
                   />
+                  
+                  {/* Crystalline facets overlay */}
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.2)_0%,transparent_70%)]" />
+                  <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'linear-gradient(30deg, transparent 45%, #fff 50%, transparent 55%), linear-gradient(-30deg, transparent 45%, #fff 50%, transparent 55%)', backgroundSize: '10px 10px' }} />
+
                   {/* Sparkles */}
-                  {[...Array(5)].map((_, i) => (
+                  {[...Array(8)].map((_, i) => (
                     <motion.div
                       key={i}
-                      className="absolute w-0.5 h-0.5 bg-white rounded-full shadow-[0_0_4px_white]"
+                      className="absolute w-1 h-1 bg-white rounded-full"
                       initial={{ scale: 0, opacity: 0 }}
                       animate={{ 
-                        scale: [0, 1.5, 0],
+                        scale: [0, 1.2, 0],
                         opacity: [0, 1, 0],
-                        x: [Math.random() * 60 - 30, Math.random() * 60 - 30],
-                        y: [Math.random() * 60 - 30, Math.random() * 60 - 30]
+                        x: [Math.random() * 64 - 32, Math.random() * 64 - 32],
+                        y: [Math.random() * 64 - 32, Math.random() * 64 - 32],
+                        boxShadow: ['0 0 0px white', '0 0 8px white', '0 0 0px white']
                       }}
                       transition={{ 
-                        duration: 1.5, 
+                        duration: 2, 
                         repeat: Infinity, 
-                        delay: Math.random() * 2,
-                        ease: "easeOut"
+                        delay: Math.random() * 3,
+                        ease: "easeInOut"
                       }}
                     />
                   ))}
-                  <span className="text-[11px] font-mono font-black text-white uppercase tracking-widest relative z-10 drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]">Agents</span>
+                  
+                  <span className="text-[11px] font-mono font-black text-white uppercase tracking-widest relative z-10 drop-shadow-[0_0_10px_rgba(255,255,255,1)]">
+                    <span className="bg-clip-text text-transparent bg-gradient-to-b from-white via-cyan-100 to-blue-200">
+                      Agents
+                    </span>
+                  </span>
                </div>
                {/* Right: Data */}
                <div className="absolute inset-0 border border-white/20 bg-white/5 backdrop-blur-sm flex items-center justify-center" style={{ transform: 'translateX(32px) rotateY(90deg)' }}>
