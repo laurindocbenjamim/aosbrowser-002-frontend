@@ -34,13 +34,20 @@ export default function OffensiveAgentPage() {
   const [isConsoleExpanded, setIsConsoleExpanded] = useState(false);
   const [formData, setFormData] = useState({ 
     target: 'https://frontend-saas-tests.onrender.com', 
-    instruction: 'Act as a Senior Penetration Tester. Conduct a comprehensive security assessment of the authentication flow (landing page, registration, and login)', 
-    iterations: 15 
+    instruction: 'Perform a comprehensive security audit: check auth flows, XSS, SSRF, JWT, and WAF bypass possibilities.', 
+    iterations: 15,
+    agentMode: 'standard',
+    locatorStrategy: 'css',
+    backendEnabled: false,
+    backendUrl: '',
+    backendEndpoints: '',
   });
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [report, setReport] = useState<string | null>(null);
   const [techniques, setTechniques] = useState<string[]>(['SQL Injection', 'XSS', 'CSRF', 'SSRF', 'Auth Bypass', 'Dir Traversal', 'IDOR']);
+  const [selectedMetrics, setSelectedMetrics] = useState<string[]>(['pass_rate']);
+  const [selectedAITechniques, setSelectedAITechniques] = useState<string[]>(['chain_of_thought', 'self_healing']);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [userUuid, setUserUuid] = useState<string>('');
   const [copied, setCopied] = useState(false);
@@ -49,6 +56,8 @@ export default function OffensiveAgentPage() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [selectedHistoryItem, setSelectedHistoryItem] = useState<any>(null);
+  const [performanceMetrics, setPerformanceMetrics] = useState<any>(null);
+  const [backendFindings, setBackendFindings] = useState<string[]>([]);
   
   const [dashboardMetrics, setDashboardMetrics] = useState<DashboardMetrics>({
     totalVulnerabilities: 0,
@@ -75,18 +84,28 @@ export default function OffensiveAgentPage() {
       }
       setUserUuid(uuid);
 
+      // Persistent Session Token
+      const storedToken = localStorage.getItem('pentest_token');
+      if (storedToken) {
+        setSessionId(storedToken);
+      }
+
       // Initial server check
       await checkServerHealth();
       
       // Get initial session so we can fetch history correctly if it requires a token
       try {
         const sResp = await api.post('/pentesting/session', { user_id: uuid });
-        const sid = sResp.data.session_id;
-        setSessionId(sid);
-        await fetchHistory(uuid, sid);
+        const sid = sResp.data.token || sResp.data.session_id;
+        if (sid) {
+          setSessionId(sid);
+          localStorage.setItem('pentest_token', sid);
+          await fetchHistory(uuid, sid);
+        } else {
+          await fetchHistory(uuid);
+        }
       } catch (err) {
         console.error('Failed to initialize session', err);
-        // Fallback to fetch without session if session call fails
         await fetchHistory(uuid);
       }
     };
@@ -126,7 +145,15 @@ export default function OffensiveAgentPage() {
 
   const fetchHistory = async (uuid: string, sid?: string | null) => {
     try {
-      const config = sid ? { headers: { Authorization: `Bearer ${sid}` } } : {};
+      const config: any = {};
+      const token = sid || sessionId;
+      if (token) {
+        config.headers = { 
+          Authorization: `Bearer ${token}`,
+          'X-Session-ID': token,
+          'session_id': token
+        };
+      }
       const resp = await api.get(`/pentesting/history?user_uuid=${uuid}`, config);
       if (Array.isArray(resp.data)) {
         setHistory(resp.data);
@@ -175,15 +202,22 @@ export default function OffensiveAgentPage() {
       if (!sid) {
         setLogs(prev => [...prev, '[SYSTEM] Generating secure session token...']);
         const sResp = await api.post('/pentesting/session', { user_id: userUuid });
-        sid = sResp.data.session_id;
-        setSessionId(sid);
+        sid = sResp.data.token || sResp.data.session_id;
+        if (sid) {
+          setSessionId(sid);
+          localStorage.setItem('pentest_token', sid);
+        }
       }
 
       if (socketRef.current) socketRef.current.close();
       const ws = new WebSocket(getWsUrl(`/pentesting/ws/${sid}`));
       socketRef.current = ws;
 
-      const authHeaders = { Authorization: `Bearer ${sid}` };
+      const authHeaders = { 
+        Authorization: `Bearer ${sid}`,
+        'X-Session-ID': sid,
+        'session_id': sid
+      };
 
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
@@ -217,9 +251,13 @@ export default function OffensiveAgentPage() {
           setLogs(prev => [...prev, `[STEP ${data.iteration}] ${data.thought}`]);
         } else if (data.type === 'progress') {
           setProgress(data.value);
+        } else if (data.type === 'metrics') {
+          setPerformanceMetrics((prev: any) => ({ ...prev, ...data.data }));
         } else if (data.type === 'complete') {
           setLogs(prev => [...prev, '[SUCCESS] Engagement completed.']);
           setReport(data.data.report);
+          setPerformanceMetrics(data.data.performance_metrics || null);
+          setBackendFindings(data.data.backend_findings || []);
           setProgress(100);
           if (timerRef.current) window.clearInterval(timerRef.current);
           fetchHistory(userUuid, sid);
@@ -227,15 +265,18 @@ export default function OffensiveAgentPage() {
       };
 
       const payload: any = {
-        url: formData.target,
+        url: formData.backendEnabled && formData.backendUrl ? formData.backendUrl : formData.target,
         instruction: formData.instruction,
         max_iterations: formData.iterations,
         session_id: sid,
+        context: `Attack Techniques: ${techniques.join(', ')}`,
+        metrics: selectedMetrics,
+        techniques: selectedAITechniques,
+        locator_strategy: formData.locatorStrategy,
+        agent_mode: formData.agentMode,
+        backend_pentest: formData.backendEnabled,
+        backend_endpoints: formData.backendEndpoints ? formData.backendEndpoints.split('\n').map(s => s.trim()).filter(Boolean) : [],
       };
-
-      if (techniques.length > 0) {
-        payload.context = `Techniques: ${techniques.join(', ')}`;
-      }
 
       const response = await api.post('/pentesting/audit', payload, { headers: authHeaders });
       setLogs(prev => [...prev, `[OK] Audit Initialized. Status: ${response.data.status}`]);
@@ -342,18 +383,20 @@ export default function OffensiveAgentPage() {
              >
                <History className="w-3 h-3" /> Historic
              </button>
-             <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest bg-black/40 px-3 py-1 rounded-full border border-white/5">
-                Session: {isLoading ? 'Engaged' : 'Standby'}
-             </span>
+             <div className="text-[10px] font-mono text-slate-500 uppercase tracking-widest bg-black/40 px-3 py-1 rounded-full border border-white/5 flex items-center gap-2">
+                SESSION: <span className={sessionId ? 'text-red-500' : 'text-slate-500'}>{sessionId ? (isLoading ? 'ACTIVE (ENGAGED)' : 'READY') : 'UNINITIALIZED'}</span>
+             </div>
           </div>
         </div>
 
         <div className="flex-1 flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-white/5">
           {/* Sidebar */}
-          <aside className="w-full md:w-80 p-6 flex flex-col gap-6 overflow-y-auto bg-black/20">
+          <aside className="w-full md:w-80 p-6 flex flex-col gap-6 overflow-y-auto bg-black/20 custom-scrollbar">
             {/* User UUID Section */}
             <div className="space-y-2">
-              <label className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">User UUID</label>
+              <label className="text-[10px] font-mono text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                <div className="w-1 h-1 rounded-full bg-red-600" /> User UUID
+              </label>
               <div className="flex items-center gap-2 bg-black/40 border border-white/10 rounded px-1 group">
                 <input 
                   type="text" 
@@ -371,64 +414,243 @@ export default function OffensiveAgentPage() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">Target URL</label>
-              <input 
-                type="text" 
-                value={formData.target}
-                onChange={(e) => setFormData({...formData, target: e.target.value})}
-                placeholder="https://frontend-saas-tests.onrender.com"
-                className="w-full bg-black/40 border border-white/10 rounded px-4 py-2 text-sm focus:border-red-600/50 outline-none transition-colors font-mono"
-              />
+            {/* Target Settings */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-mono text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                  <div className="w-1 h-1 rounded-full bg-red-600" /> Target URL
+                </label>
+                <input 
+                  type="text" 
+                  value={formData.target}
+                  onChange={(e) => setFormData({...formData, target: e.target.value})}
+                  placeholder="https://frontend-saas-tests.onrender.com"
+                  className="w-full bg-black/40 border border-white/10 rounded px-4 py-2 text-sm focus:border-red-600/50 outline-none transition-colors font-mono"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-mono text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                  <div className="w-1 h-1 rounded-full bg-red-600" /> Attack Instruction
+                </label>
+                <textarea 
+                  value={formData.instruction}
+                  onChange={(e) => setFormData({...formData, instruction: e.target.value})}
+                  className="w-full h-32 bg-black/40 border border-white/10 rounded px-4 py-2 text-sm focus:border-red-600/50 outline-none transition-colors resize-none font-sans"
+                  placeholder="Describe attack parameters..."
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">Iterations</label>
+                  <input 
+                    type="number" 
+                    value={formData.iterations}
+                    onChange={(e) => setFormData({...formData, iterations: parseInt(e.target.value)})}
+                    className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm outline-none focus:border-red-600/50 font-mono"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">Agent Mode</label>
+                  <select 
+                    value={formData.agentMode}
+                    onChange={(e) => setFormData({...formData, agentMode: e.target.value})}
+                    className="w-full bg-black/40 border border-white/10 rounded px-2 py-2 text-[10px] outline-none focus:border-red-600/50 uppercase font-mono"
+                  >
+                    <option value="standard">Standard</option>
+                    <option value="aggressive">Aggressive</option>
+                    <option value="passive_recon">Passive Recon</option>
+                  </select>
+                </div>
+              </div>
             </div>
 
+            {/* Techniques */}
             <div className="space-y-2">
-              <label className="text-[10px] font-mono text-slate-500 uppercase tracking-widest shadow-red-500">Attack Instruction</label>
-              <textarea 
-                value={formData.instruction}
-                onChange={(e) => setFormData({...formData, instruction: e.target.value})}
-                className="w-full h-32 bg-black/40 border border-white/10 rounded px-4 py-2 text-sm focus:border-red-600/50 outline-none transition-colors resize-none font-sans"
-                placeholder="Describe attack parameters..."
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">Engagement Scope</label>
-              <div className="p-3 bg-red-600/5 border border-red-600/10 rounded-lg space-y-2">
+              <label className="text-[10px] font-mono text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                <div className="w-1 h-1 rounded-full bg-red-600" /> Attack Techniques
+              </label>
+              <div className="p-3 bg-white/[0.02] border border-white/5 rounded-lg space-y-2">
                 <label className="flex items-center gap-2 cursor-pointer group border-b border-white/5 pb-2 mb-2">
                   <input 
                     type="checkbox" 
                     onChange={(e) => {
-                      if (e.target.checked) setTechniques(['SQL Injection', 'XSS', 'CSRF', 'SSRF', 'Auth Bypass', 'Dir Traversal', 'IDOR']);
+                      if (e.target.checked) setTechniques(['SQL Injection', 'XSS', 'CSRF', 'SSRF', 'Auth Bypass', 'Dir Traversal', 'IDOR', 'JWT Exploit', 'CORS Misconfig', 'Clickjacking']);
                       else setTechniques([]);
                     }}
-                    checked={techniques.length === 7}
+                    checked={techniques.length === 10}
                     className="w-3 h-3 accent-red-600" 
                   />
                   <span className="text-[10px] uppercase font-mono text-white font-bold">Select All</span>
                 </label>
-                {['SQL Injection', 'XSS', 'CSRF', 'SSRF', 'Auth Bypass', 'Dir Traversal', 'IDOR'].map((t) => (
-                  <label key={t} className="flex items-center gap-2 cursor-pointer group">
-                    <input 
-                      type="checkbox" 
-                      checked={techniques.includes(t)}
-                      onChange={(e) => {
-                        if (e.target.checked) setTechniques([...techniques, t]);
-                        else setTechniques(techniques.filter(x => x !== t));
-                      }}
-                      className="w-3 h-3 accent-red-600" 
-                    />
-                    <span className="text-[10px] uppercase font-mono text-slate-400 group-hover:text-white transition-colors">{t}</span>
+                <div className="grid grid-cols-1 gap-1.5 max-h-40 overflow-y-auto px-1 custom-scrollbar">
+                  {['SQL Injection', 'XSS', 'CSRF', 'SSRF', 'Auth Bypass', 'Dir Traversal', 'IDOR', 'JWT Exploit', 'CORS Misconfig', 'Clickjacking'].map((t) => (
+                    <label key={t} className="flex items-center justify-between cursor-pointer group">
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="checkbox" 
+                          checked={techniques.includes(t)}
+                          onChange={(e) => {
+                            if (e.target.checked) setTechniques([...techniques, t]);
+                            else setTechniques(techniques.filter(x => x !== t));
+                          }}
+                          className="w-3 h-3 accent-red-600" 
+                        />
+                        <span className="text-[10px] uppercase font-mono text-slate-400 group-hover:text-white transition-colors">{t}</span>
+                      </div>
+                      <span className="text-[8px] bg-red-600/10 text-red-500 px-1.5 py-0.5 rounded uppercase font-bold tracking-tighter">Vuln</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Performance Metrics */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-mono text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                <div className="w-1 h-1 rounded-full bg-blue-500" /> Performance Metrics
+              </label>
+              <div className="p-3 bg-white/[0.02] border border-white/5 rounded-lg grid grid-cols-1 gap-2">
+                {[
+                  { id: 'core_web_vitals', label: 'Core Web Vitals', tag: 'CWV' },
+                  { id: 'ttfb', label: 'TTFB', tag: 'NET' },
+                  { id: 'pass_rate', label: 'Pass Rate', tag: 'QA' },
+                  { id: 'flakiness_rate', label: 'Flakiness', tag: 'STB' },
+                  { id: 'code_coverage', label: 'Code Coverage', tag: 'COV' }
+                ].map((m) => (
+                  <label key={m.id} className="flex items-center justify-between cursor-pointer group">
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="checkbox" 
+                        checked={selectedMetrics.includes(m.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) setSelectedMetrics([...selectedMetrics, m.id]);
+                          else setSelectedMetrics(selectedMetrics.filter(x => x !== m.id));
+                        }}
+                        className="w-3 h-3 accent-blue-500" 
+                      />
+                      <span className="text-[10px] uppercase font-mono text-slate-400 group-hover:text-white transition-colors">{m.label}</span>
+                    </div>
+                    <span className="text-[8px] bg-blue-500/10 text-blue-500 px-1.5 py-0.5 rounded uppercase font-bold tracking-tighter">{m.tag}</span>
                   </label>
                 ))}
               </div>
             </div>
 
-            <div className="flex flex-col gap-3">
+            {/* AI Techniques */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-mono text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                <div className="w-1 h-1 rounded-full bg-purple-500" /> AI Techniques
+              </label>
+              <div className="p-3 bg-white/[0.02] border border-white/5 rounded-lg grid grid-cols-1 gap-2">
+                {[
+                  { id: 'chain_of_thought', label: 'Chain of Thought', tag: 'CoT' },
+                  { id: 'self_healing', label: 'Self-Healing', tag: 'HEAL' },
+                  { id: 'visual_regression', label: 'Visual Regression', tag: 'REG' },
+                  { id: 'vision_based', label: 'Vision-Based', tag: 'VIS' },
+                  { id: 'mocking', label: 'API Mocking', tag: 'MOCK' },
+                  { id: 'parallel', label: 'Parallel Exec', tag: 'PAR' }
+                ].map((t) => (
+                  <label key={t.id} className="flex items-center justify-between cursor-pointer group">
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="checkbox" 
+                        checked={selectedAITechniques.includes(t.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) setSelectedAITechniques([...selectedAITechniques, t.id]);
+                          else setSelectedAITechniques(selectedAITechniques.filter(x => x !== t.id));
+                        }}
+                        className="w-3 h-3 accent-purple-500" 
+                      />
+                      <span className="text-[10px] uppercase font-mono text-slate-400 group-hover:text-white transition-colors">{t.label}</span>
+                    </div>
+                    <span className="text-[8px] bg-purple-500/10 text-purple-500 px-1.5 py-0.5 rounded uppercase font-bold tracking-tighter">{t.tag}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Locator Strategy */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-mono text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                <div className="w-1 h-1 rounded-full bg-blue-400" /> Locator Strategy
+              </label>
+              <div className="p-3 bg-white/[0.02] border border-white/5 rounded-lg grid grid-cols-2 gap-2">
+                 <label className="flex items-center gap-2 cursor-pointer group">
+                    <input 
+                      type="radio" 
+                      name="locatorStrategy"
+                      checked={formData.locatorStrategy === 'css'}
+                      onChange={() => setFormData({...formData, locatorStrategy: 'css'})}
+                      className="w-3 h-3 accent-blue-400" 
+                    />
+                    <span className="text-[10px] uppercase font-mono text-slate-400 group-hover:text-white transition-colors">CSS</span>
+                 </label>
+                 <label className="flex items-center gap-2 cursor-pointer group">
+                    <input 
+                      type="radio" 
+                      name="locatorStrategy"
+                      checked={formData.locatorStrategy === 'accessibility'}
+                      onChange={() => setFormData({...formData, locatorStrategy: 'accessibility'})}
+                      className="w-3 h-3 accent-blue-400" 
+                    />
+                    <span className="text-[10px] uppercase font-mono text-slate-400 group-hover:text-white transition-colors">Aria</span>
+                 </label>
+              </div>
+            </div>
+
+            {/* Backend Pentest */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-mono text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                <div className="w-1 h-1 rounded-full bg-orange-500" /> Backend Pentest
+              </label>
+              <div className="p-3 bg-white/[0.02] border border-white/5 rounded-lg space-y-3">
+                 <label className="flex items-center gap-2 cursor-pointer group">
+                    <input 
+                      type="checkbox" 
+                      checked={formData.backendEnabled}
+                      onChange={(e) => setFormData({...formData, backendEnabled: e.target.checked})}
+                      className="w-3 h-3 accent-orange-500" 
+                    />
+                    <span className="text-[10px] uppercase font-mono text-slate-400 group-hover:text-white transition-colors">Enable Backend Mode</span>
+                 </label>
+                 
+                 {formData.backendEnabled && (
+                   <motion.div 
+                     initial={{ opacity: 0, height: 0 }}
+                     animate={{ opacity: 1, height: 'auto' }}
+                     className="space-y-3 pt-2 border-t border-white/5"
+                   >
+                     <div className="space-y-1">
+                        <label className="text-[9px] font-mono text-slate-500 uppercase">Base API URL</label>
+                        <input 
+                          type="text" 
+                          value={formData.backendUrl}
+                          onChange={(e) => setFormData({...formData, backendUrl: e.target.value})}
+                          placeholder="https://api.target.com"
+                          className="w-full bg-black/40 border border-white/10 rounded px-2 py-1.5 text-[10px] focus:border-orange-500/50 outline-none font-mono"
+                        />
+                     </div>
+                     <div className="space-y-1">
+                        <label className="text-[9px] font-mono text-slate-500 uppercase">Endpoints (one per line)</label>
+                        <textarea 
+                          value={formData.backendEndpoints}
+                          onChange={(e) => setFormData({...formData, backendEndpoints: e.target.value})}
+                          placeholder="/api/v1/users&#10;/api/v1/login"
+                          className="w-full h-24 bg-black/40 border border-white/10 rounded px-2 py-1.5 text-[10px] focus:border-orange-500/50 outline-none resize-none font-mono"
+                        />
+                     </div>
+                   </motion.div>
+                 )}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 py-4 border-t border-white/5">
               <button 
                 onClick={handleLaunch}
                 disabled={isLoading}
-                className="w-full py-3 bg-red-600 text-white font-display font-bold text-xs uppercase tracking-[0.2em] hover:bg-red-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-red-600/20"
+                className="w-full py-4 bg-red-600 text-white font-display font-bold text-xs uppercase tracking-[0.2em] hover:bg-red-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-red-600/20"
               >
                 {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
                 {isLoading ? 'Engaging...' : 'Launch Engagement'}
@@ -437,30 +659,37 @@ export default function OffensiveAgentPage() {
               {isLoading && (
                 <button 
                   onClick={handleStop}
-                  className="w-full py-3 border border-red-600/50 text-red-500 font-display font-bold text-xs uppercase tracking-[0.2em] hover:bg-red-600/10 transition-all flex items-center justify-center gap-2"
+                  className="w-full py-4 border border-red-600/50 text-red-500 font-display font-bold text-xs uppercase tracking-[0.2em] hover:bg-red-600/10 transition-all flex items-center justify-center gap-2"
                 >
                   <Square className="w-3 h-3 fill-current" />
                   Abort Execution
                 </button>
               )}
+              
+              {report && (
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                   <div className="relative">
+                     <button 
+                        onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+                        className="w-full py-3 bg-white/5 border border-white/10 text-white font-display font-bold text-[10px] uppercase tracking-widest hover:bg-white/10 transition-all flex items-center justify-center gap-2"
+                      >
+                        <Download className="w-3 h-3" /> Export
+                      </button>
+                      <ExportMenu 
+                        isOpen={isExportMenuOpen} 
+                        onClose={() => setIsExportMenuOpen(false)} 
+                        onExport={exportReport} 
+                      />
+                   </div>
+                   <button 
+                      onClick={() => {}} // Placeholder for Chart if needed
+                      className="w-full py-3 bg-white/5 border border-white/10 text-white font-display font-bold text-[10px] uppercase tracking-widest hover:bg-white/10 transition-all flex items-center justify-center gap-2"
+                    >
+                      <BarChart className="w-3 h-3" /> Analysis
+                    </button>
+                </div>
+              )}
             </div>
-
-            {report && (
-               <div className="relative">
-                 <button 
-                    onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
-                    className="w-full py-3 bg-white/5 border border-white/10 text-white font-display font-bold text-xs uppercase tracking-[0.2em] hover:bg-white/10 transition-all flex items-center justify-center gap-2"
-                  >
-                    <Download className="w-3 h-3" />
-                    Export tactical report
-                  </button>
-                  <ExportMenu 
-                    isOpen={isExportMenuOpen} 
-                    onClose={() => setIsExportMenuOpen(false)} 
-                    onExport={exportReport} 
-                  />
-               </div>
-            )}
           </aside>
 
           {/* Main Area */}
@@ -596,6 +825,50 @@ export default function OffensiveAgentPage() {
                       </div>
                     </div>
 
+                    {/* Metrics and Backend Panels */}
+                    {(performanceMetrics || backendFindings.length > 0) && (
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {performanceMetrics && (
+                           <div className="glass-card p-6 border-white/5 bg-white/[0.02] rounded-xl">
+                              <h3 className="text-xs font-mono font-bold uppercase tracking-widest text-blue-400 mb-6 flex items-center gap-2">
+                                <Activity className="w-3 h-3" /> Performance & Quality Metrics
+                              </h3>
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                 {Object.entries(performanceMetrics).map(([key, val]: [string, any]) => (
+                                   <div key={key} className="p-3 bg-white/[0.02] border border-white/5 rounded-lg text-center">
+                                      <div className={`text-lg font-bold font-mono ${
+                                        key.includes('rate') ? (val > 80 ? 'text-green-500' : val > 50 ? 'text-yellow-500' : 'text-red-500') : 'text-blue-400'
+                                      }`}>
+                                        {val}{key.includes('ms') ? 'ms' : key.includes('rate') ? '%' : ''}
+                                      </div>
+                                      <div className="text-[8px] font-mono uppercase text-slate-500 mt-1">{key.replace(/_/g, ' ')}</div>
+                                   </div>
+                                 ))}
+                              </div>
+                           </div>
+                        )}
+                        
+                        {backendFindings.length > 0 && (
+                          <div className="glass-card p-6 border-white/5 bg-white/[0.02] rounded-xl flex flex-col">
+                             <h3 className="text-xs font-mono font-bold uppercase tracking-widest text-purple-400 mb-6 flex items-center gap-2">
+                               <Target className="w-3 h-3" /> Backend Findings
+                             </h3>
+                             <div className="flex-1 overflow-y-auto max-h-60 space-y-2 custom-scrollbar pr-2">
+                               {backendFindings.map((finding, i) => (
+                                 <div key={i} className={`p-2 rounded text-[10px] font-mono border-l-2 ${
+                                   /vuln|error|fail|risk|exploit|bypass|athor|idor/i.test(finding) 
+                                   ? 'bg-red-500/5 border-red-500 text-red-400' 
+                                   : 'bg-green-500/5 border-green-500 text-green-400'
+                                 }`}>
+                                   {finding}
+                                 </div>
+                               ))}
+                             </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Report Section */}
                     {report && (
                       <motion.div 
@@ -654,7 +927,18 @@ export default function OffensiveAgentPage() {
         isOpen={isHistoryOpen} 
         onClose={() => setIsHistoryOpen(false)} 
         history={history}
-        onSelectItem={(item) => setSelectedHistoryItem(item)}
+        onSelectItem={(item) => {
+          setReport(item.result?.report || null);
+          setPerformanceMetrics(item.result?.performance_metrics || null);
+          setBackendFindings(item.result?.backend_findings || []);
+          setFormData(prev => ({
+            ...prev,
+            target: item.url || prev.target,
+            instruction: item.instruction || prev.instruction
+          }));
+          setIsHistoryOpen(false);
+          setLogs(prev => [...prev, `[SYSTEM] Loaded historic audit for ${item.url}`]);
+        }}
       />
 
       <AnimatePresence>

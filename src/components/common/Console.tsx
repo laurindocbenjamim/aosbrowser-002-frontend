@@ -76,6 +76,9 @@ export function Console({ title, logs, isExpanded, onToggleExpand, isFullPage = 
           <div key={i} className="text-xs break-all border-l-2 border-white/5 pl-3 py-1">
             <span className="text-green-500 opacity-60 mr-2 tabular-nums">[{new Date().toLocaleTimeString()}]</span>
             <span className={
+              log.includes('[System]') ? 'text-blue-400' :
+              log.includes('[Agent]') ? 'text-blue-300' :
+              log.includes('[Actions') ? 'text-blue-200' :
               ((log.includes('[ERROR]') || log.includes('[FAILURE]') || /found|exploit|critical|vulnerable|injection|breach/i.test(log)) && 
                !/no vuln|no risk|success|scanning|checking/i.test(log.toLowerCase())) 
               ? 'text-red-400 font-bold' 

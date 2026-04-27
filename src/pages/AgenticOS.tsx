@@ -9,14 +9,14 @@ import { ProgressHeader } from '../components/common/ProgressHeader';
 
 export default function AgenticOSPage() {
   const navigate = useNavigate();
-  const [logs, setLogs] = useState<string[]>(['[SYSTEM] Core online... awaiting task.']);
-  const [messages, setMessages] = useState<{sender: 'system' | 'user', text: string}[]>([
+  const [logs, setLogs] = useState<string[]>(['[System] Core online... awaiting task.']);
+  const [messages, setMessages] = useState<{sender: 'system' | 'user' | 'agent', text: string, iteration?: number, thought?: string}[]>([
     { sender: 'system', text: 'Welcome to the Agent Console. Configure the task parameters in the sidebar and deploy the agent.' }
   ]);
   const [isConsoleExpanded, setIsConsoleExpanded] = useState(false);
   const [formData, setFormData] = useState({ 
     target: 'https://frontend-saas-tests.onrender.com/register', 
-    instruction: '1. Execution Steps: Step 1 (Registration): Fill out the registration form with the following details: First Name: Feti, Last Name: Fetovic, Email: "fetovic@email.com", Password: "Fetovic123!", Confirm Password: "Fetovic123!" and submit. Step 2 (Login): Once you signup from the register page,you will be redirected to the login page,then log in with the credentials you just created. Step 3 (Navigation): After entering the dashboard, locate the sidebar and click on the "Users" menu. Step 4 (Action): On the users page, use the "Provision New User" button to create at least 3 new distinct users.',
+    instruction: '1. Execution Steps: Step 1 (Registration): Fill out the registration form with the following details: First Name: Feti, Last Name: Fetovic, Email: "fetovic@email.com", Password: "Fetovic123!", Confirm Password: "Fetovic123!" and submit. Step 2 (Login): Once you signup from the register page, you will be redirected to the login page, then log in with the credentials you just created. Step 3 (Navigation): After entering the dashboard, locate the sidebar and click on the "Users" menu. Step 4 (Action): On the users page, use the "Provision New User" button to create at least 3 new distinct users.',
     context: '',
     autoDecision: false
   });
@@ -32,19 +32,19 @@ export default function AgenticOSPage() {
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, logs]);
 
   useEffect(() => {
     if (isLoading) setIsConsoleExpanded(true);
   }, [isLoading]);
 
   const handleRun = async () => {
-    setLogs(prev => [...prev, '[SYSTEM] Validating instructions...']);
+    setLogs(prev => [...prev, `[System] Initializing task: ${formData.instruction.substring(0, 100)}...`]);
     const result = AutomationSchema.safeParse(formData);
     
     if (!result.success) {
       const errorMsg = result.error.issues[0].message;
-      setLogs(prev => [...prev, `[VALIDATION_ERR] ${errorMsg}`]);
+      setLogs(prev => [...prev, `[System] Validation Error: ${errorMsg}`]);
       setMessages(prev => [...prev, { sender: 'system', text: `Validation Error: ${errorMsg}` }]);
       setIsConsoleExpanded(true);
       return;
@@ -54,16 +54,20 @@ export default function AgenticOSPage() {
       sender: 'user', 
       text: `Deploying agent to ${formData.target}` 
     }]);
+
+    setMessages(prev => [...prev, { 
+      sender: 'system', 
+      text: `Task started. Monitoring real-time stream...` 
+    }]);
     
     setIsLoading(true);
     setProgress(5);
-    setLogs(prev => [...prev, `[CMD] Orchestrating node sequence for: ${formData.target}`]);
     
     try {
       // Step 1: Get Session
       let sid = sessionId;
       if (!sid) {
-        setLogs(prev => [...prev, '[SYSTEM] Initializing node session...']);
+        setLogs(prev => [...prev, '[System] Initializing node session...']);
         const sessionResp = await api.post('/automation/session');
         sid = sessionResp.data.session_id;
         setSessionId(sid);
@@ -74,23 +78,33 @@ export default function AgenticOSPage() {
       const ws = new WebSocket(getWsUrl(`/automation/ws/${sid}`));
       socketRef.current = ws;
 
+      ws.onopen = () => {
+        setLogs(prev => [...prev, '[System] Real-time connection established.']);
+      };
+
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
         if (data.progress !== undefined) setProgress(data.progress);
         
         if (data.type === 'status') {
-          setLogs(prev => [...prev, `[AGENT] ${data.message}`]);
+          setLogs(prev => [...prev, `[Agent] ${data.message}`]);
           if (data.final) {
             setMessages(prev => [...prev, { sender: 'system', text: data.message }]);
           }
         } else if (data.type === 'step') {
+          setLogs(prev => [...prev, `[Agent] Starting iteration ${data.iteration}`]);
           setMessages(prev => [...prev, { 
-            sender: 'system', 
-            text: `Iteration ${data.iteration}: ${data.thought}` 
+            sender: 'agent', 
+            iteration: data.iteration,
+            text: data.thought,
+            thought: data.thought
           }]);
+          
           if (data.actions && data.actions.length > 0) {
-            setLogs(prev => [...prev, `[ACTIONS] ${JSON.stringify(data.actions)}`]);
+            setLogs(prev => [...prev, `[Actions (Iter ${data.iteration})] ${JSON.stringify(data.actions)}`]);
           }
+        } else if (data.type === 'error') {
+          setLogs(prev => [...prev, `[System] Error: ${data.error}`]);
         }
       };
 
@@ -108,7 +122,7 @@ export default function AgenticOSPage() {
       }
 
       const resp = await api.post('/automation/run-task', payload);
-      setLogs(prev => [...prev, `[OK] Task queued. Status: ${resp.data.status}`]);
+      setLogs(prev => [...prev, `[System] Task queued. Status: ${resp.data.status}`]);
       setProgress(10);
     } catch (err: any) {
       let friendlyMessage = 'Gateway offline or task interrupted.';
@@ -121,7 +135,7 @@ export default function AgenticOSPage() {
           default: friendlyMessage = `Communication Interruption: Node Code ${err.response.status}`;
         }
       }
-      setLogs(prev => [...prev, `[TIMEOUT] ${friendlyMessage}`]);
+      setLogs(prev => [...prev, `[System] Timeout: ${friendlyMessage}`]);
       setMessages(prev => [...prev, { sender: 'system', text: `Gateway error: ${friendlyMessage}` }]);
       setProgress(0);
     } finally {
@@ -223,7 +237,7 @@ export default function AgenticOSPage() {
               <button 
                 onClick={handleRun}
                 disabled={isLoading}
-                className="w-full py-3.5 bg-green-600 text-black font-display font-bold text-xs uppercase tracking-[0.2em] hover:bg-green-500 transition-all disabled:opacity-50 shadow-lg shadow-green-500/10 flex items-center justify-center gap-2"
+                className="w-full py-3.5 bg-[#4d57f6] text-white font-display font-bold text-xs uppercase tracking-[0.2em] hover:bg-[#3d47e6] transition-all disabled:opacity-50 shadow-lg shadow-blue-500/10 flex items-center justify-center gap-2"
               >
                 {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
                 {isLoading ? 'Processing...' : 'Deploy Automation'}
@@ -252,17 +266,23 @@ export default function AgenticOSPage() {
                     animate={{ opacity: 1, y: 0 }}
                     className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
                   >
-                    <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest mb-1.5 px-1">
-                      {msg.sender === 'system' ? 'Node Interface' : 'Authenticated User'}
+                    <span className="text-[9px] font-mono text-slate-500 uppercase tracking-[0.2em] mb-2 px-1">
+                      {msg.sender === 'system' ? 'SYSTEM' : msg.sender === 'user' ? 'YOU' : `ITERATION ${msg.iteration}`}
                     </span>
-                    <div className={`max-w-[85%] px-5 py-4 rounded-2xl text-sm leading-relaxed transition-colors duration-300 ${
+                    <div className={`max-w-[85%] px-6 py-5 rounded-2xl text-sm leading-relaxed transition-all duration-300 ${
                       msg.sender === 'user' 
-                        ? 'bg-green-600/10 border border-green-600/20 text-green-100 rounded-tr-none shadow-[0_0_20px_rgba(34,197,94,0.05)]' 
-                        : (/error|failure|timeout|failed|vuln|vulnerability|exploit|found|risk|critical|breach/i.test(msg.text) && !/no vuln|no risk|success/i.test(msg.text))
-                          ? 'bg-red-600/10 border border-red-600/30 text-red-200 rounded-tl-none shadow-[0_0_20px_rgba(239,68,68,0.05)]'
-                          : 'bg-white/[0.03] border border-white/5 text-slate-300 rounded-tl-none'
+                        ? 'bg-[#4d57f6] text-white rounded-tr-none shadow-[0_4px_20px_rgba(77,87,246,0.15)]' 
+                        : msg.sender === 'agent'
+                          ? 'bg-white/[0.04] border border-white/10 text-slate-200 rounded-tl-none'
+                          : 'bg-white/[0.02] border border-white/5 text-slate-400 rounded-tl-none'
                     }`}>
-                      {msg.text}
+                      {msg.sender === 'agent' ? (
+                        <div>
+                          <span className="font-bold text-slate-100">Thought:</span> {msg.text}
+                        </div>
+                      ) : (
+                        msg.text
+                      )}
                     </div>
                   </motion.div>
                 ))}
