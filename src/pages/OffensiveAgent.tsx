@@ -361,8 +361,8 @@ export default function OffensiveAgentPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white pt-24 pb-12 flex flex-col">
-      <div className="max-w-5xl mx-auto w-full flex-1 flex flex-col glass-card border-white/5 rounded-xl overflow-hidden tech-border relative">
+    <div className="h-screen bg-[#050505] text-white pt-24 pb-6 flex flex-col px-4">
+      <div className="max-w-6xl mx-auto w-full flex-1 flex flex-col glass-card border-white/5 rounded-xl overflow-hidden tech-border relative min-h-0">
         <ProgressHeader progress={progress} status={isLoading ? 'Active' : 'Standby'} />
         
         {/* Header */}
@@ -389,9 +389,9 @@ export default function OffensiveAgentPage() {
           </div>
         </div>
 
-        <div className="flex-1 flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-white/5">
+        <div className="flex-1 flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-white/5 min-h-0 overflow-hidden">
           {/* Sidebar */}
-          <aside className="w-full md:w-80 p-6 flex flex-col gap-6 overflow-y-auto bg-black/20 custom-scrollbar">
+          <aside className="w-full md:w-80 p-6 flex flex-col gap-6 overflow-y-auto bg-black/20 custom-scrollbar h-full flex-shrink-0">
             {/* User UUID Section */}
             <div className="space-y-2">
               <label className="text-[10px] font-mono text-slate-500 uppercase tracking-widest flex items-center gap-2">
@@ -693,7 +693,7 @@ export default function OffensiveAgentPage() {
           </aside>
 
           {/* Main Area */}
-          <main className="flex-1 flex flex-col relative bg-[#080808] overflow-hidden">
+          <main className="flex-1 flex flex-col relative bg-[#080808] overflow-hidden min-w-0 min-h-0">
             <div className="flex-1 p-6 sm:p-8 overflow-y-auto custom-scrollbar">
               <AnimatePresence mode="wait">
                 {!report && !isLoading ? (
