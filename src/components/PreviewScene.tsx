@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldAlert, Zap, Globe, Share2, Database, Lock } from 'lucide-react';
+import { ShieldAlert, Zap, Globe, Share2, Database, Lock, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 
 interface PreviewSceneProps {
@@ -10,6 +10,14 @@ interface PreviewSceneProps {
 
 export default function PreviewScene({ layoutId, onNavigate, mini = false }: PreviewSceneProps) {
   const [isHovered, setIsHovered] = useState(false);
+  const [loadingTarget, setLoadingTarget] = useState<string | null>(null);
+
+  const handleNavigate = (page: string) => {
+    setLoadingTarget(page);
+    setTimeout(() => {
+      onNavigate?.(page);
+    }, 800);
+  };
 
   return (
     <motion.div 
@@ -33,15 +41,55 @@ export default function PreviewScene({ layoutId, onNavigate, mini = false }: Pre
                 
                 {/* The Light at the End */}
                 <div 
-                  className="absolute w-24 h-24 bg-white blur-[1px] shadow-[0_0_100px_40px_rgba(255,255,255,0.2)] z-0 opacity-40"
-                  style={{ transform: 'translateZ(-800px)' }}
+                  className="absolute w-32 h-32 bg-white blur-[2px] shadow-[0_0_120px_60px_rgba(255,255,255,0.15)] z-0 opacity-20"
+                  style={{ transform: 'translateZ(-1200px)' }}
                 />
+
+                {/* Tunnel Ribs / Light Elements */}
+                {[...Array(15)].map((_, i) => {
+                  const zPos = i * 160 - 1200;
+                  return (
+                    <div key={`ribs-${i}`} className="absolute inset-0" style={{ transform: `translateZ(${zPos}px)`, transformStyle: 'preserve-3d' }}>
+                      {/* Left Wall Rib (V-shape) */}
+                      <div className="absolute top-1/2 left-0 -translate-y-1/2" style={{ transformStyle: 'preserve-3d' }}>
+                        <div 
+                          className="absolute w-1 h-40 bg-gradient-to-b from-transparent via-white/10 to-transparent blur-[2px]"
+                          style={{ 
+                            transform: 'translateX(-800px) rotateY(90deg) skewY(25deg) translateY(-20px)',
+                          }}
+                        />
+                        <div 
+                          className="absolute w-1 h-40 bg-gradient-to-b from-transparent via-white/10 to-transparent blur-[2px]"
+                          style={{ 
+                            transform: 'translateX(-800px) rotateY(90deg) skewY(-25deg) translateY(20px)',
+                          }}
+                        />
+                      </div>
+                      
+                      {/* Right Wall Rib (V-shape) */}
+                      <div className="absolute top-1/2 right-0 -translate-y-1/2" style={{ transformStyle: 'preserve-3d' }}>
+                        <div 
+                          className="absolute w-1 h-40 bg-gradient-to-b from-transparent via-white/10 to-transparent blur-[2px]"
+                          style={{ 
+                            transform: 'translateX(800px) rotateY(-90deg) skewY(-25deg) translateY(-20px)',
+                          }}
+                        />
+                        <div 
+                          className="absolute w-1 h-40 bg-gradient-to-b from-transparent via-white/10 to-transparent blur-[2px]"
+                          style={{ 
+                            transform: 'translateX(800px) rotateY(-90deg) skewY(25deg) translateY(20px)',
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
                 
                 {/* Left Wall */}
                 <div 
-                  className="absolute w-[1000px] h-full bg-[#080808] border-r border-white/5"
+                  className="absolute w-[1600px] h-full bg-[#080808] border-r border-white/5"
                   style={{ 
-                    transform: 'rotateY(90deg) translateZ(-500px)',
+                    transform: 'rotateY(90deg) translateZ(-800px)',
                     backgroundImage: 'linear-gradient(to right, #000, transparent)',
                     maskImage: 'linear-gradient(to bottom, transparent, black, transparent)'
                   }}
@@ -51,9 +99,9 @@ export default function PreviewScene({ layoutId, onNavigate, mini = false }: Pre
 
                 {/* Right Wall */}
                 <div 
-                  className="absolute w-[1000px] h-full bg-[#080808] border-l border-white/5"
+                  className="absolute w-[1600px] h-full bg-[#080808] border-l border-white/5"
                   style={{ 
-                    transform: 'rotateY(-90deg) translateZ(-500px)',
+                    transform: 'rotateY(-90deg) translateZ(-800px)',
                     backgroundImage: 'linear-gradient(to left, #000, transparent)',
                     maskImage: 'linear-gradient(to bottom, transparent, black, transparent)'
                   }}
@@ -63,40 +111,44 @@ export default function PreviewScene({ layoutId, onNavigate, mini = false }: Pre
 
                 {/* Floor */}
                 <div 
-                  className="absolute w-full h-[1200px] bg-[#020202]"
+                  className="absolute w-[2000px] h-[2000px] bg-[#020202]"
                   style={{ 
-                    transform: 'rotateX(90deg) translateZ(540px)',
-                    backgroundImage: 'radial-gradient(ellipse at center, rgba(255,255,255,0.03) 0%, rgba(0,0,0,0) 70%)',
+                    transform: 'rotateX(90deg) translateZ(280px)',
+                    backgroundImage: `
+                      radial-gradient(ellipse at center, rgba(64, 100, 255, 0.25) 0%, rgba(64, 100, 255, 0) 70%),
+                      radial-gradient(ellipse at center, rgba(147, 51, 234, 0.15) 0%, rgba(0, 0, 0, 0) 90%),
+                      linear-gradient(to right, transparent, rgba(64, 100, 255, 0.05) 50%, transparent)
+                    `,
                   }}
                 >
-                  <div className="absolute inset-0 opacity-[0.02]" style={{ backgroundImage: 'repeating-linear-gradient(transparent, transparent 40px, rgba(255,255,255,1) 41px)', maskImage: 'linear-gradient(to right, transparent, black 25%, black 75%, transparent)' }} />
+                  <div className="absolute inset-0 opacity-[0.08]" style={{ backgroundImage: 'repeating-linear-gradient(transparent, transparent 40px, rgba(255,255,255,1) 41px)', maskImage: 'linear-gradient(to right, transparent, black 25%, black 75%, transparent)' }} />
                   
                   {/* Diffused shadow for the central object */}
                   <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
                     <motion.div 
                        animate={{ 
-                         scale: [1, 1.1, 1],
-                         opacity: [0.15, 0.2, 0.15]
+                         scale: [1, 1.4, 1],
+                         opacity: [0.3, 0.5, 0.3]
                        }}
                        transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                       className="w-48 h-48 bg-white/20 blur-[60px] rounded-full"
+                       className="w-96 h-96 bg-blue-500/40 blur-[100px] rounded-full"
                     />
                     <motion.div 
                        animate={{ 
-                         scale: [0.8, 0.9, 0.8],
-                         opacity: [0.3, 0.4, 0.3]
+                         scale: [0.8, 1.2, 0.8],
+                         opacity: [0.4, 0.6, 0.4]
                        }}
                        transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                       className="w-24 h-24 bg-white/30 blur-[40px] rounded-full absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
+                       className="w-48 h-48 bg-purple-500/50 blur-[60px] rounded-full absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
                     />
                   </div>
                 </div>
 
                 {/* Ceiling */}
                 <div 
-                  className="absolute w-full h-[1000px] bg-black"
+                  className="absolute w-full h-[1600px] bg-black"
                   style={{ 
-                    transform: 'rotateX(-90deg) translateZ(500px)',
+                    transform: 'rotateX(-90deg) translateZ(800px)',
                     boxShadow: 'inset 0 0 200px #000'
                   }}
                 />
@@ -104,8 +156,9 @@ export default function PreviewScene({ layoutId, onNavigate, mini = false }: Pre
             </div>
 
             {/* Global atmospheric fog/glow */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black opacity-60" />
-            <div className="absolute inset-0 bg-gradient-to-r from-black via-transparent to-black opacity-60" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black opacity-40" />
+            <div className="absolute inset-0 bg-gradient-to-r from-black via-transparent to-black opacity-40" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,black_100%)] opacity-60" />
           </div>
 
           {/* Grid Overlay (Subtle) */}
@@ -138,7 +191,7 @@ export default function PreviewScene({ layoutId, onNavigate, mini = false }: Pre
       {/* Main Visual: Orbiting Rings */}
       {!mini && (
         <div 
-          className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none"
+          className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none scale-[0.7] sm:scale-100 -translate-y-8 sm:translate-y-[-10%]"
         >
           <div 
             className="w-80 h-80 rounded-full pointer-events-auto cursor-pointer"
@@ -150,7 +203,7 @@ export default function PreviewScene({ layoutId, onNavigate, mini = false }: Pre
       <motion.div 
         animate={{ y: [0, -15, 0] }}
         transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-        className={`absolute inset-0 flex items-center justify-center pointer-events-none ${mini ? 'scale-[0.2]' : ''}`}
+        className={`absolute inset-0 flex items-center justify-center pointer-events-none ${mini ? 'scale-[0.2]' : 'scale-[0.7] sm:scale-100 -translate-y-8 sm:translate-y-[-10%]'}`}
       >
         <div className="relative w-80 h-80 flex items-center justify-center">
             {/* Outer Ring */}
@@ -272,44 +325,58 @@ export default function PreviewScene({ layoutId, onNavigate, mini = false }: Pre
                 <motion.button
                   initial={{ x: -20, opacity: 0 }}
                   animate={{ x: 0, opacity: 1 }}
-                  onClick={() => onNavigate?.('automation')}
-                  className="flex-1 max-w-[200px] h-14 border border-white/10 bg-[#0A0A0A] hover:bg-white/5 transition-all flex items-center justify-center gap-3 group/btn pointer-events-auto"
+                  disabled={loadingTarget !== null}
+                  onClick={() => handleNavigate('automation')}
+                  className="flex-1 max-w-[200px] h-14 border border-white/10 bg-[#0A0A0A] hover:bg-white/5 transition-all flex items-center justify-center gap-3 group/btn pointer-events-auto disabled:opacity-50"
                 >
-                  <Zap className="w-4 h-4 text-theme-accent group-hover/btn:scale-110 transition-transform" />
-                  <span className="text-[10px] font-display font-bold text-white uppercase tracking-[0.3em]">Automation</span>
+                  {loadingTarget === 'automation' ? (
+                    <Loader2 className="w-4 h-4 text-theme-accent animate-spin" />
+                  ) : (
+                    <Zap className="w-4 h-4 text-theme-accent group-hover/btn:scale-110 transition-transform" />
+                  )}
+                  <span className="text-[10px] font-display font-bold text-white uppercase tracking-[0.3em]">
+                    {loadingTarget === 'automation' ? 'Loading...' : 'Automation'}
+                  </span>
                 </motion.button>
                 
                 <motion.button
                   initial={{ x: 20, opacity: 0 }}
                   animate={{ x: 0, opacity: 1 }}
-                  onClick={() => onNavigate?.('pentesting')}
-                  className="flex-1 max-w-[200px] h-14 border border-theme-accent/30 bg-[#0A0A0A] hover:bg-theme-accent/5 transition-all flex items-center justify-center gap-3 group/btn pointer-events-auto"
+                  disabled={loadingTarget !== null}
+                  onClick={() => handleNavigate('pentesting')}
+                  className="flex-1 max-w-[200px] h-14 border border-theme-accent/30 bg-[#0A0A0A] hover:bg-theme-accent/5 transition-all flex items-center justify-center gap-3 group/btn pointer-events-auto disabled:opacity-50"
                 >
-                  <ShieldAlert className="w-4 h-4 text-orange-500 group-hover/btn:scale-110 transition-transform" />
-                  <span className="text-[10px] font-display font-bold text-white uppercase tracking-[0.3em]">Pentesting AI</span>
+                  {loadingTarget === 'pentesting' ? (
+                    <Loader2 className="w-4 h-4 text-orange-500 animate-spin" />
+                  ) : (
+                    <ShieldAlert className="w-4 h-4 text-orange-500 group-hover/btn:scale-110 transition-transform" />
+                  )}
+                  <span className="text-[10px] font-display font-bold text-white uppercase tracking-[0.3em]">
+                    {loadingTarget === 'pentesting' ? 'Initializing...' : 'Pentesting AI'}
+                  </span>
                 </motion.button>
               </motion.div>
             )}
           </AnimatePresence>
 
           {/* Footer Details */}
-          <div className="absolute bottom-8 left-8 max-w-sm z-20">
-            <p className="text-[10px] font-sans text-slate-500 leading-relaxed uppercase tracking-widest text-balance">
+          <div className="absolute bottom-4 sm:bottom-8 left-6 sm:left-8 max-w-[calc(100%-3rem)] sm:max-w-sm z-20">
+            <p className="text-[8px] sm:text-[10px] font-sans text-slate-500 leading-relaxed uppercase tracking-widest text-balance">
               Advanced heuristics engine detecting anomalies in real-time across decentralized architectures.
             </p>
           </div>
 
-          <div className="absolute bottom-8 right-8 flex items-center gap-12 z-20 font-mono">
-            <div className="flex items-center gap-2">
+          <div className="absolute bottom-4 sm:bottom-8 right-6 sm:right-8 flex flex-col sm:flex-row items-end sm:items-center gap-2 sm:gap-12 z-20 font-mono">
+            <div className="flex items-center gap-2 hidden sm:flex">
               <span className="text-[8px] text-slate-600 uppercase tracking-[0.2em]">Secops Framework</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[8px] text-slate-600 uppercase tracking-[0.2em]">Encrypted Tunnel:</span>
-              <span className="text-[8px] text-green-500 uppercase font-bold tracking-[0.2em]">On</span>
+              <span className="text-[7px] sm:text-[8px] text-slate-600 uppercase tracking-[0.2em]">Tunnel:</span>
+              <span className="text-[7px] sm:text-[8px] text-green-500 uppercase font-bold tracking-[0.2em]">On</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[8px] text-slate-600 uppercase tracking-[0.2em]">Auth Node:</span>
-              <span className="text-[8px] text-blue-500 uppercase font-bold tracking-[0.2em]">Oxfds</span>
+              <span className="text-[7px] sm:text-[8px] text-slate-600 uppercase tracking-[0.2em]">Node:</span>
+              <span className="text-[7px] sm:text-[8px] text-blue-500 uppercase font-bold tracking-[0.2em]">Oxfds</span>
             </div>
           </div>
         </>
