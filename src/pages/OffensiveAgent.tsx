@@ -66,17 +66,32 @@ export default function OffensiveAgentPage() {
   const startTimeRef = useRef<number>(0);
 
   useEffect(() => {
-    // Persistent User UUID
-    let uuid = localStorage.getItem('asun_user_uuid');
-    if (!uuid) {
-      uuid = uuidv4();
-      localStorage.setItem('asun_user_uuid', uuid);
-    }
-    setUserUuid(uuid);
+    const init = async () => {
+      // Persistent User UUID
+      let uuid = localStorage.getItem('asun_user_uuid');
+      if (!uuid) {
+        uuid = uuidv4();
+        localStorage.setItem('asun_user_uuid', uuid);
+      }
+      setUserUuid(uuid);
 
-    // Initial server check and history fetch
-    checkServerHealth();
-    fetchHistory(uuid);
+      // Initial server check
+      await checkServerHealth();
+      
+      // Get initial session so we can fetch history correctly if it requires a token
+      try {
+        const sResp = await api.post('/pentesting/session', { user_id: uuid });
+        const sid = sResp.data.session_id;
+        setSessionId(sid);
+        await fetchHistory(uuid, sid);
+      } catch (err) {
+        console.error('Failed to initialize session', err);
+        // Fallback to fetch without session if session call fails
+        await fetchHistory(uuid);
+      }
+    };
+
+    init();
 
     const healthInterval = setInterval(checkServerHealth, 30000);
     return () => { 
@@ -97,11 +112,10 @@ export default function OffensiveAgentPage() {
 
   const checkServerHealth = async () => {
     try {
-      // Any response (even error responses like 405) from the server means it is online
-      const response = await api.get('/pentesting/session'); 
+      // The root path returns the main UI, so it's a safe health check
+      await api.get('/'); 
       setServerStatus('online');
     } catch (err: any) {
-      // If we got a response from the server, it's alive (even if 405 Method Not Allowed)
       if (err.response) {
         setServerStatus('online');
       } else {
@@ -110,9 +124,10 @@ export default function OffensiveAgentPage() {
     }
   };
 
-  const fetchHistory = async (uuid: string) => {
+  const fetchHistory = async (uuid: string, sid?: string | null) => {
     try {
-      const resp = await api.get(`/pentesting/history?user_uuid=${uuid}`);
+      const config = sid ? { headers: { Authorization: `Bearer ${sid}` } } : {};
+      const resp = await api.get(`/pentesting/history?user_uuid=${uuid}`, config);
       if (Array.isArray(resp.data)) {
         setHistory(resp.data);
       }
@@ -168,6 +183,8 @@ export default function OffensiveAgentPage() {
       const ws = new WebSocket(getWsUrl(`/pentesting/ws/${sid}`));
       socketRef.current = ws;
 
+      const authHeaders = { Authorization: `Bearer ${sid}` };
+
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
         if (data.type === 'log') {
@@ -205,7 +222,7 @@ export default function OffensiveAgentPage() {
           setReport(data.data.report);
           setProgress(100);
           if (timerRef.current) window.clearInterval(timerRef.current);
-          fetchHistory(userUuid);
+          fetchHistory(userUuid, sid);
         }
       };
 
@@ -220,7 +237,7 @@ export default function OffensiveAgentPage() {
         payload.context = `Techniques: ${techniques.join(', ')}`;
       }
 
-      const response = await api.post('/pentesting/audit', payload);
+      const response = await api.post('/pentesting/audit', payload, { headers: authHeaders });
       setLogs(prev => [...prev, `[OK] Audit Initialized. Status: ${response.data.status}`]);
     } catch (err: any) {
       setLogs(prev => [...prev, `[FAILURE] Communication error: ${err.message}`]);
@@ -232,7 +249,7 @@ export default function OffensiveAgentPage() {
 
   const handleStop = async () => {
     try {
-      await api.post(`/pentesting/stop?session_id=${sessionId}`);
+      await api.post('/pentesting/stop', { session_id: sessionId });
       setLogs(prev => [...prev, '[SYSTEM] Abort signal sent. Terminating job...']);
       setIsLoading(false);
       setProgress(0);
