@@ -81,6 +81,8 @@ export function Console({ title, logs, isExpanded, onToggleExpand, isFullPage = 
               log.includes('[Status]') ? 'text-amber-400' :
               log.includes('[Step') ? 'text-purple-400' :
               log.includes('[Actions') ? 'text-blue-200' :
+              log.includes('EXPLOITING TECHNIQUE') || log.includes('ATTACK TECHNIQUE') ? 'text-red-500 font-black border-y border-red-500/20 py-1 my-1 block bg-red-500/5' :
+              log.includes('TECHNIQUE COMPLETED') || log.includes('EXPLOIT SUCCESSFUL') ? 'text-green-500 font-black border-y border-green-500/20 py-1 my-1 block bg-green-500/5' :
               ((log.includes('[ERROR]') || log.includes('[FAILURE]') || /found|exploit|critical|vulnerable|injection|breach/i.test(log)) && 
                !/no vuln|no risk|success|scanning|checking/i.test(log.toLowerCase())) 
               ? 'text-red-400 font-bold' 

@@ -95,7 +95,7 @@ export default function OffensiveAgentPage() {
       
       // Get initial session so we can fetch history correctly if it requires a token
       try {
-        const sResp = await api.post('/pentesting/session', { user_id: uuid });
+        const sResp = await api.post('/pentesting/session');
         const sid = sResp.data.token || sResp.data.session_id;
         if (sid) {
           setSessionId(sid);
@@ -146,7 +146,7 @@ export default function OffensiveAgentPage() {
   const fetchHistory = async (uuid: string, sid?: string | null) => {
     try {
       const config: any = {};
-      const token = sid || sessionId;
+      const token = sid || sessionId || localStorage.getItem('pentest_token');
       if (token) {
         config.headers = { 
           Authorization: `Bearer ${token}`,
@@ -154,7 +154,8 @@ export default function OffensiveAgentPage() {
           'session_id': token
         };
       }
-      const resp = await api.get(`/pentesting/history?user_uuid=${uuid}`, config);
+      // Reverting to the endpoint format in the provided JS file (no user_uuid query param)
+      const resp = await api.get('/pentesting/history', config);
       if (Array.isArray(resp.data)) {
         setHistory(resp.data);
       }
@@ -213,7 +214,7 @@ export default function OffensiveAgentPage() {
       let sid = sessionId;
       if (!sid) {
         setLogs(prev => [...prev, '[SYSTEM] Generating secure session token...']);
-        const sResp = await api.post('/pentesting/session', { user_id: userUuid });
+        const sResp = await api.post('/pentesting/session');
         sid = sResp.data.token || sResp.data.session_id;
         if (sid) {
           setSessionId(sid);
@@ -231,54 +232,83 @@ export default function OffensiveAgentPage() {
         'session_id': sid
       };
 
-      ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type === 'log') {
-          setLogs(prev => [...prev, data.message]);
-          // Simple regex based heuristic for metrics update
-          if (/critical|vulnerability found/i.test(data.message)) {
-            setDashboardMetrics(prev => ({
-              ...prev,
-              critical: prev.critical + 1,
-              totalVulnerabilities: prev.totalVulnerabilities + 1,
-              riskScore: Math.min(100, prev.riskScore + 15)
-            }));
-          } else if (/high|exploit success/i.test(data.message)) {
-            setDashboardMetrics(prev => ({
-              ...prev,
-              high: prev.high + 1,
-              totalVulnerabilities: prev.totalVulnerabilities + 1,
-              riskScore: Math.min(100, prev.riskScore + 10)
-            }));
-          } else if (/medium|potential/i.test(data.message)) {
-            setDashboardMetrics(prev => ({
-              ...prev,
-              medium: prev.medium + 1,
-              totalVulnerabilities: prev.totalVulnerabilities + 1,
-            }));
+        ws.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          if (data.type === 'log') {
+            const msg = data.message;
+            setLogs(prev => [...prev, msg]);
+            
+            // Real-time metric heuristic updates
+            if (/CRITICAL|VULNERABILITY FOUND/i.test(msg)) {
+              setDashboardMetrics(prev => ({
+                ...prev,
+                critical: prev.critical + 1,
+                totalVulnerabilities: prev.totalVulnerabilities + 1,
+                riskScore: Math.min(100, prev.riskScore + 15)
+              }));
+            } else if (/HIGH|EXPLOIT SUCCESS|BREACH/i.test(msg)) {
+              setDashboardMetrics(prev => ({
+                ...prev,
+                high: prev.high + 1,
+                totalVulnerabilities: prev.totalVulnerabilities + 1,
+                riskScore: Math.min(100, prev.riskScore + 10)
+              }));
+            } else if (/MEDIUM|POTENTIAL VULN|BYPASS/i.test(msg)) {
+              setDashboardMetrics(prev => ({
+                ...prev,
+                medium: prev.medium + 1,
+                totalVulnerabilities: prev.totalVulnerabilities + 1,
+                riskScore: Math.min(100, prev.riskScore + 5)
+              }));
+            } else if (/LOW|INFO|WARNING/i.test(msg)) {
+              setDashboardMetrics(prev => ({
+                ...prev,
+                low: prev.low + 1,
+                totalVulnerabilities: prev.totalVulnerabilities + 1,
+              }));
+            }
+
+            if (/discovered|new endpoint|found path|found URL/i.test(msg)) {
+              setDashboardMetrics(prev => ({
+                ...prev,
+                endpointsDiscovered: prev.endpointsDiscovered + 1
+              }));
+            }
+          } else if (data.type === 'status') {
+            if (data.iteration) {
+              setLogs(prev => [...prev, `[Status] Iteration ${data.iteration}: ${data.message}`]);
+            } else {
+              setLogs(prev => [...prev, `[Status] ${data.message}`]);
+            }
+          } else if (data.type === 'step') {
+            setLogs(prev => [...prev, `[Step ${data.iteration}] ${data.thought}`]);
+          } else if (data.type === 'progress') {
+            setProgress(data.value);
+          } else if (data.type === 'metrics') {
+            setPerformanceMetrics((prev: any) => ({ ...prev, ...data.data }));
+          } else if (data.type === 'complete') {
+            setLogs(prev => [...prev, '[SUCCESS] Engagement completed.']);
+            setReport(data.data.report);
+            setPerformanceMetrics(data.data.performance_metrics || null);
+            setBackendFindings(data.data.backend_findings || []);
+            
+            // Sync final risk summary if available
+            if (data.data.risk_summary) {
+              setDashboardMetrics(prev => ({
+                ...prev,
+                critical: data.data.risk_summary.critical || 0,
+                high: data.data.risk_summary.high || 0,
+                medium: data.data.risk_summary.medium || 0,
+                low: data.data.risk_summary.low || 0,
+                totalVulnerabilities: data.data.findings_count || prev.totalVulnerabilities
+              }));
+            }
+
+            setProgress(100);
+            if (timerRef.current) window.clearInterval(timerRef.current);
+            fetchHistory(userUuid, sid);
           }
-        } else if (data.type === 'status') {
-          if (data.iteration) {
-            setLogs(prev => [...prev, `[Status] Iteration ${data.iteration}: ${data.message}`]);
-          } else {
-            setLogs(prev => [...prev, `[Status] ${data.message}`]);
-          }
-        } else if (data.type === 'step') {
-          setLogs(prev => [...prev, `[Step ${data.iteration}] ${data.thought}`]);
-        } else if (data.type === 'progress') {
-          setProgress(data.value);
-        } else if (data.type === 'metrics') {
-          setPerformanceMetrics((prev: any) => ({ ...prev, ...data.data }));
-        } else if (data.type === 'complete') {
-          setLogs(prev => [...prev, '[SUCCESS] Engagement completed.']);
-          setReport(data.data.report);
-          setPerformanceMetrics(data.data.performance_metrics || null);
-          setBackendFindings(data.data.backend_findings || []);
-          setProgress(100);
-          if (timerRef.current) window.clearInterval(timerRef.current);
-          fetchHistory(userUuid, sid);
-        }
-      };
+        };
 
       const payload: any = {
         url: formData.backendEnabled && formData.backendUrl ? formData.backendUrl : formData.target,
