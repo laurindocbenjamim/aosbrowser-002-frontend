@@ -78,6 +78,8 @@ export function Console({ title, logs, isExpanded, onToggleExpand, isFullPage = 
             <span className={
               log.includes('[System]') ? 'text-blue-400' :
               log.includes('[Agent]') ? 'text-blue-300' :
+              log.includes('[Status]') ? 'text-amber-400' :
+              log.includes('[Step') ? 'text-purple-400' :
               log.includes('[Actions') ? 'text-blue-200' :
               ((log.includes('[ERROR]') || log.includes('[FAILURE]') || /found|exploit|critical|vulnerable|injection|breach/i.test(log)) && 
                !/no vuln|no risk|success|scanning|checking/i.test(log.toLowerCase())) 

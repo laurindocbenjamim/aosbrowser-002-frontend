@@ -167,6 +167,18 @@ export default function OffensiveAgentPage() {
     if (isLoading) setIsConsoleExpanded(true);
   }, [isLoading]);
 
+  const downloadLogs = () => {
+    if (logs.length === 0) return;
+    const content = logs.map(l => `[${new Date().toLocaleTimeString()}] ${l}`).join('\n');
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `pentest_console_${new Date().toISOString().replace(/[:.]/g, '-')}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleLaunch = async () => {
     setLogs(prev => [...prev, '[SYSTEM] Commencing validation...']);
     const result = AgentSchema.safeParse(formData);
@@ -246,9 +258,13 @@ export default function OffensiveAgentPage() {
             }));
           }
         } else if (data.type === 'status') {
-          setLogs(prev => [...prev, `[STATUS] ${data.message}`]);
+          if (data.iteration) {
+            setLogs(prev => [...prev, `[Status] Iteration ${data.iteration}: ${data.message}`]);
+          } else {
+            setLogs(prev => [...prev, `[Status] ${data.message}`]);
+          }
         } else if (data.type === 'step') {
-          setLogs(prev => [...prev, `[STEP ${data.iteration}] ${data.thought}`]);
+          setLogs(prev => [...prev, `[Step ${data.iteration}] ${data.thought}`]);
         } else if (data.type === 'progress') {
           setProgress(data.value);
         } else if (data.type === 'metrics') {
@@ -354,10 +370,6 @@ export default function OffensiveAgentPage() {
     element.download = name;
     document.body.appendChild(element);
     element.click();
-  };
-
-  const downloadHistoryLogs = () => {
-    downloadFile("engagement_history.txt", logs.join('\n'), 'text/plain');
   };
 
   return (
@@ -916,7 +928,7 @@ export default function OffensiveAgentPage() {
               logs={logs} 
               isExpanded={isConsoleExpanded} 
               onToggleExpand={() => setIsConsoleExpanded(!isConsoleExpanded)}
-              onDownload={downloadHistoryLogs}
+              onDownload={!isLoading && logs.length > 0 ? downloadLogs : undefined}
             />
           </main>
         </div>
