@@ -222,7 +222,7 @@ export default function OffensiveAgentPage() {
       }
 
       if (socketRef.current) socketRef.current.close();
-      const ws = new WebSocket(getWsUrl(`/pentesting/ws/${sid}`));
+      const ws = new WebSocket(getWsUrl(`/pentesting/ws?session_id=${encodeURIComponent(sid)}`));
       socketRef.current = ws;
 
       const authHeaders = { 
