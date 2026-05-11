@@ -4,7 +4,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   ArrowLeft, Terminal, Shield, Zap, Loader2, Square, Download, 
   Copy, Check, FileText, FileJson, FileCode, History, X,
-  MoreVertical, AlertTriangle, Activity, Target, ShieldAlert as ShieldAlertIcon
+  MoreVertical, AlertTriangle, Activity, Target, ShieldAlert as ShieldAlertIcon,
+  Paperclip, Trash2
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
@@ -59,6 +60,9 @@ export default function OffensiveAgentPage() {
   const [performanceMetrics, setPerformanceMetrics] = useState<any>(null);
   const [backendFindings, setBackendFindings] = useState<string[]>([]);
   
+  const [attachedFiles, setAttachedFiles] = useState<any[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  
   const [dashboardMetrics, setDashboardMetrics] = useState<DashboardMetrics>({
     totalVulnerabilities: 0,
     critical: 0,
@@ -73,6 +77,7 @@ export default function OffensiveAgentPage() {
   const socketRef = useRef<WebSocket | null>(null);
   const timerRef = useRef<number | null>(null);
   const startTimeRef = useRef<number>(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const init = async () => {
@@ -178,6 +183,48 @@ export default function OffensiveAgentPage() {
     link.download = `pentest_console_${new Date().toISOString().replace(/[:.]/g, '-')}.txt`;
     link.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsUploading(true);
+    setLogs(prev => [...prev, `[SYSTEM] Processing ${files.length} attachment(s)...`]);
+
+    try {
+      const uploadPromises = (Array.from(files) as File[]).map(async (file) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        // Using /automation/upload as requested for advanced file processing
+        const response = await api.post('/automation/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        
+        return {
+          name: file.name,
+          content: response.data.content,
+          type: file.type,
+          id: uuidv4()
+        };
+      });
+
+      const processedFiles = await Promise.all(uploadPromises);
+      setAttachedFiles(prev => [...prev, ...processedFiles]);
+      setLogs(prev => [...prev, `[OK] ${processedFiles.length} file(s) processed and indexed.`]);
+    } catch (err: any) {
+      console.error('File upload failed', err);
+      setLogs(prev => [...prev, `[ERROR] File processing failed: ${err.message}`]);
+    } finally {
+      setIsUploading(false);
+      // Reset input
+      e.target.value = '';
+    }
+  };
+
+  const removeFile = (id: string) => {
+    setAttachedFiles(prev => prev.filter(f => f.id !== id));
   };
 
   const handleLaunch = async () => {
@@ -310,12 +357,16 @@ export default function OffensiveAgentPage() {
           }
         };
 
+      const fileContext = attachedFiles.length > 0 
+        ? `\n\n### CONTEXT & DATA SOURCES ###\n${attachedFiles.map(f => `FILE: ${f.name}\nCONTENT: ${f.content}`).join('\n---\n')}`
+        : '';
+
       const payload: any = {
         url: formData.backendEnabled && formData.backendUrl ? formData.backendUrl : formData.target,
         instruction: formData.instruction,
         max_iterations: formData.iterations,
         session_id: sid,
-        context: `Attack Techniques: ${techniques.join(', ')}`,
+        context: `### PRIMARY GOAL ###\nAttack Techniques: ${techniques.join(', ')}${fileContext}`,
         metrics: selectedMetrics,
         techniques: selectedAITechniques,
         locator_strategy: formData.locatorStrategy,
@@ -481,6 +532,64 @@ export default function OffensiveAgentPage() {
                   className="w-full h-32 bg-black/40 border border-white/10 rounded px-4 py-2 text-sm focus:border-red-600/50 outline-none transition-colors resize-none font-sans"
                   placeholder="Describe attack parameters..."
                 />
+              </div>
+
+              {/* Attachments Section */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-mono text-slate-500 uppercase tracking-widest flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-1 h-1 rounded-full bg-blue-500" /> Data Sources / Attachments
+                  </div>
+                  {attachedFiles.length > 0 && (
+                    <span className="text-[9px] text-blue-400 lowercase">{attachedFiles.length} file(s) indexed</span>
+                  )}
+                </label>
+                
+                <div className="space-y-2">
+                  <AnimatePresence initial={false}>
+                    {attachedFiles.map((file) => (
+                      <motion.div 
+                        key={file.id}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 10 }}
+                        className="flex items-center justify-between p-2 bg-white/[0.03] border border-white/10 rounded group"
+                      >
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <FileCode className="w-3 h-3 text-blue-400" />
+                          <span className="text-[10px] font-mono text-slate-300 truncate">{file.name}</span>
+                        </div>
+                        <button 
+                          onClick={() => removeFile(file.id)}
+                          className="p-1 hover:bg-red-500/10 rounded text-slate-500 hover:text-red-500 transition-colors"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                  
+                  <button 
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                    className="w-full py-2 border border-dashed border-white/10 rounded text-[10px] font-mono text-slate-500 hover:border-blue-500/50 hover:text-blue-400 transition-all flex items-center justify-center gap-2"
+                  >
+                    {isUploading ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Paperclip className="w-3 h-3" />
+                    )}
+                    {isUploading ? 'Processing...' : 'Attach Data Source'}
+                  </button>
+                  <input 
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileUpload}
+                    multiple
+                    className="hidden"
+                    accept=".pdf,.png,.jpg,.jpeg,.csv,.txt,.json,.html"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
